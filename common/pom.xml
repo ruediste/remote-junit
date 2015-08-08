@@ -1,0 +1,25 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.github.ruediste.remoteJUnit</groupId>
+    <artifactId>remoteJUnit-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+  </parent>
+  <artifactId>remoteJUnit-common</artifactId>
+  <build>
+        <plugins>
+                <plugin>
+                        <groupId>com.github.igor-petruk.protobuf</groupId>
+                        <artifactId>protobuf-maven-plugin</artifactId>
+                        <version>0.6.3</version>
+                        <executions>
+                                <execution>
+                                        <goals>
+                                                <goal>run</goal>
+                                        </goals>
+                                </execution>
+                        </executions>
+                </plugin>
+        </plugins>
+</build>
+</project>
