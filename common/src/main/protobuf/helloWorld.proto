@@ -1,8 +1,0 @@
-package com.github.ruediste.remoteJUnit;
-
-option java_package = "com.github.ruediste.remoteJUnit.common";
-option java_outer_classname = "HelloWorld";
-
-message Hello {
-  required string message = 1;
-}
