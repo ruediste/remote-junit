@@ -5,6 +5,8 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 
+import com.github.ruediste.remoteJUnit.common.Constants;
+
 public class RemoteJUnitServerLauncher {
 
     public static void main(String... args) {
@@ -16,11 +18,10 @@ public class RemoteJUnitServerLauncher {
             // System.setSecurityManager(new SecurityManager());
         }
         try {
-            String name = "com.github.ruediste.remoteJUnit.server";
             JUnitServerRemoteImpl server = new JUnitServerRemoteImpl();
             Remote stub = UnicastRemoteObject.exportObject(server, 0);
-            Registry registry = LocateRegistry.createRegistry(2020);
-            registry.rebind(name, stub);
+            Registry registry = LocateRegistry.createRegistry(Constants.PORT);
+            registry.rebind(Constants.NAME, stub);
             System.out.println("Server Bound");
         } catch (Exception e) {
             System.err.println("JUnit Server exception:");

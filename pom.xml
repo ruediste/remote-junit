@@ -9,6 +9,7 @@
 		<module>server</module>
 		<module>common</module>
 		<module>client</module>
+		<module>remoteJunit-test</module>
 	</modules>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

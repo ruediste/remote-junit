@@ -22,4 +22,5 @@ public interface RunNotifierRemote extends Remote {
 
     void fireTestFinished(Description desc) throws RemoteException;
 
+    void pleaseStop() throws RemoteException;
 }
