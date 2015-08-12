@@ -10,6 +10,7 @@ import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 
 import com.github.ruediste.remoteJUnit.common.OutErrCombiningStream;
+import com.github.ruediste.remoteJUnit.common.Utils;
 import com.github.ruediste.remoteJUnit.messages.RemoteJUnitRequest;
 import com.github.ruediste.remoteJUnit.messages.RemoteJUnitRequestVisitor;
 import com.github.ruediste.remoteJUnit.messages.RemoteJUnitResponse;

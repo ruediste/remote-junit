@@ -1,4 +1,4 @@
-package com.github.ruediste.remoteJUnit.server;
+package com.github.ruediste.remoteJUnit.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
