@@ -3,10 +3,13 @@ package com.github.ruediste.remoteJUnit.client;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.URI;
+import java.net.URLClassLoader;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.security.Permission;
+import java.util.Arrays;
 
 import org.junit.runner.Description;
 import org.junit.runner.Runner;
@@ -35,6 +38,10 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
     private Runner delegate;
 
     public RemoteTestRunner(Class<?> clazz) throws InitializationError {
+        System.out.println(Arrays.asList(((URLClassLoader) clazz
+                .getClassLoader()).getURLs()));
+        // System.out.println(RMIClassLoader.getClassAnnotation(clazz));
+
         Remote remote = Utils.findAnnotation(clazz, Remote.class);
         String endpoint = System.getProperty("junit.remote.endpoint");
         ;
@@ -51,19 +58,40 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
         log.debug("Trying remote server {} with runner {}", endpoint,
                 remoteRunnerClass.getName());
 
-        Registry registry;
         try {
+            if (System.getSecurityManager() == null) {
+                System.setSecurityManager(new SecurityManager() {
+                    @Override
+                    public void checkPermission(Permission perm) {
+                    }
+
+                    @Override
+                    public void checkPermission(Permission perm, Object context) {
+                    }
+                });
+            }
+
+            Registry registry;
             registry = LocateRegistry.getRegistry(Constants.PORT);
             JUnitServerRemote server = (JUnitServerRemote) registry
                     .lookup(Constants.NAME);
 
             RunnerRemote runner = server.createRunner(remoteRunnerClass, clazz);
 
+            // a little sleep is required, otherwise we get a strange error
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
             delegate = new InternalRemoteRunner(runner);
         } catch (RemoteException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
         } catch (NotBoundException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
         if (delegate == null) {

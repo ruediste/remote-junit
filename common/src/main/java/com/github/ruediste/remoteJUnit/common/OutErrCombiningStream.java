@@ -11,7 +11,8 @@ public class OutErrCombiningStream implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    static class Entry {
+    static class Entry implements Serializable {
+        private static final long serialVersionUID = 1L;
         boolean isErr = false;
         byte[] data;
 
@@ -28,51 +29,6 @@ public class OutErrCombiningStream implements Serializable {
     transient private boolean currentIsErr;
     transient private ByteArrayOutputStream currentBaos = new ByteArrayOutputStream();
 
-    private final OutputStream out = new OutputStream() {
-
-        @Override
-        public void write(int b) throws IOException {
-            checkEntry();
-            currentBaos.write(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            checkEntry();
-            currentBaos.write(b, off, len);
-        };
-
-        private void checkEntry() {
-            if (currentIsErr) {
-                commitLastEntry();
-                currentIsErr = false;
-            }
-        }
-
-    };
-    private final OutputStream err = new OutputStream() {
-
-        @Override
-        public void write(int b) throws IOException {
-            checkEntry();
-            currentBaos.write(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            checkEntry();
-            currentBaos.write(b, off, len);
-        };
-
-        private void checkEntry() {
-            if (!currentIsErr) {
-                commitLastEntry();
-                currentIsErr = true;
-            }
-        }
-
-    };
-
     public void commitLastEntry() {
         if (currentBaos.size() > 0) {
             entries.add(new Entry(currentIsErr, currentBaos.toByteArray()));
@@ -81,11 +37,53 @@ public class OutErrCombiningStream implements Serializable {
     }
 
     public OutputStream getOut() {
-        return out;
+        return new OutputStream() {
+
+            @Override
+            public void write(int b) throws IOException {
+                checkEntry();
+                currentBaos.write(b);
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                checkEntry();
+                currentBaos.write(b, off, len);
+            };
+
+            private void checkEntry() {
+                if (currentIsErr) {
+                    commitLastEntry();
+                    currentIsErr = false;
+                }
+            }
+        };
     }
 
     public OutputStream getErr() {
-        return err;
+        return new OutputStream() {
+
+            @Override
+            public void write(int b) throws IOException {
+                checkEntry();
+                currentBaos.write(b);
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                checkEntry();
+                currentBaos.write(b, off, len);
+            };
+
+            private void checkEntry() {
+                if (!currentIsErr) {
+                    commitLastEntry();
+                    currentIsErr = true;
+                }
+            }
+
+        };
+
     }
 
     public void write(OutputStream out, OutputStream err) throws IOException {

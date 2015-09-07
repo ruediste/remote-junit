@@ -1,6 +1,8 @@
 package com.github.ruediste.remoteJUnit.client.rmi;
 
+import java.io.IOException;
 import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
 
 import org.junit.runner.Description;
 import org.junit.runner.Runner;
@@ -11,6 +13,8 @@ import org.junit.runner.manipulation.Sortable;
 import org.junit.runner.manipulation.Sorter;
 import org.junit.runner.notification.RunNotifier;
 
+import com.github.ruediste.remoteJUnit.common.OutErrCombiningStream;
+import com.github.ruediste.remoteJUnit.common.rmi.RunNotifierRemote;
 import com.github.ruediste.remoteJUnit.common.rmi.RunnerRemote;
 
 public class InternalRemoteRunner extends Runner implements Sortable,
@@ -29,7 +33,7 @@ public class InternalRemoteRunner extends Runner implements Sortable,
 
     @Override
     public void filter(Filter filter) throws NoTestsRemainException {
-    
+
     }
 
     @Override
@@ -43,9 +47,16 @@ public class InternalRemoteRunner extends Runner implements Sortable,
 
     @Override
     public void run(RunNotifier notifier) {
+        OutErrCombiningStream out;
         try {
-            delegate.run(new RunNotifierRemoteImpl(notifier));
+            out = delegate.run((RunNotifierRemote) UnicastRemoteObject
+                    .exportObject(new RunNotifierRemoteImpl(notifier), 0));
         } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            out.write(System.out, System.out);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

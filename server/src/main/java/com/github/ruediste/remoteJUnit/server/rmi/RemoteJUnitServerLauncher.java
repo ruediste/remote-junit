@@ -4,6 +4,7 @@ import java.rmi.Remote;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.security.Permission;
 
 import com.github.ruediste.remoteJUnit.common.Constants;
 
@@ -15,7 +16,15 @@ public class RemoteJUnitServerLauncher {
 
     public void start() {
         if (System.getSecurityManager() == null) {
-            // System.setSecurityManager(new SecurityManager());
+            System.setSecurityManager(new SecurityManager() {
+                @Override
+                public void checkPermission(Permission perm) {
+                }
+
+                @Override
+                public void checkPermission(Permission perm, Object context) {
+                }
+            });
         }
         try {
             JUnitServerRemoteImpl server = new JUnitServerRemoteImpl();

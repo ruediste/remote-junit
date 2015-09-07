@@ -9,4 +9,7 @@ public interface JUnitServerRemote extends Remote {
 
     RunnerRemote createRunner(Class<? extends Runner> runnerClass,
             Class<?> testClass) throws RemoteException;
+
+    RunnerRemote createRunner(String runnerClass, String testClass)
+            throws RemoteException;
 }
