@@ -30,7 +30,6 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
     public RemoteTestRunner(Class<?> clazz) throws InitializationError {
         Remote remote = Utils.findAnnotation(clazz, Remote.class);
         String endpoint = System.getProperty("junit.remote.endpoint");
-        ;
         Class<? extends Runner> remoteRunnerClass;
         if (remote != null) {
             if (endpoint == null)
@@ -43,7 +42,8 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
         }
         log.debug("Trying remote server {} with runner {}", endpoint,
                 remoteRunnerClass.getName());
-        if (isRemoteUp(endpoint)) {
+        // if (isRemoteUp(endpoint)) {
+        if (true) {
             delegate = new InternalRemoteRunner(clazz, endpoint,
                     remoteRunnerClass);
         } else {

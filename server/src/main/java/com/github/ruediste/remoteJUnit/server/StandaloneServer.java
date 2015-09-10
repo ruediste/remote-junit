@@ -1,45 +1,82 @@
 package com.github.ruediste.remoteJUnit.server;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.InetSocketAddress;
 
-import com.github.ruediste.remoteJUnit.messages.RemoteJUnitRequest;
-import com.github.ruediste.remoteJUnit.messages.RemoteJUnitResponse;
-import com.sun.net.httpserver.HttpContext;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-@SuppressWarnings("restriction")
-public class StandaloneServer {
+import com.github.ruediste.remoteJUnit.common.requests.RemoteJUnitRequest;
+import com.github.ruediste.remoteJUnit.common.responses.FailureResponse;
+import com.github.ruediste.remoteJUnit.common.responses.RemoteJUnitResponse;
 
-    public static void main(String[] args) throws IOException {
-        final RemoteJUnitRequestHandler handler = new RemoteJUnitRequestHandler();
-        HttpServer server = HttpServer.create(new InetSocketAddress(9081), 2);
-        HttpContext ctx = server.createContext("/");
-        ctx.setHandler(new HttpHandler() {
+import fi.iki.elonen.NanoHTTPD;
+import fi.iki.elonen.NanoHTTPD.Response.Status;
 
-            @Override
-            public void handle(HttpExchange t) throws IOException {
-                ObjectInputStream in = new ObjectInputStream(t.getRequestBody());
-                try {
-                    RemoteJUnitRequest req = (RemoteJUnitRequest) in
-                            .readObject();
-                    RemoteJUnitResponse resp = handler.handle(req);
+public class StandaloneServer extends NanoHTTPD {
+    public StandaloneServer(int port) {
+        super(port);
+    }
 
-                    t.sendResponseHeaders(200, 0);
-                    ObjectOutputStream os = new ObjectOutputStream(t
-                            .getResponseBody());
-                    os.writeObject(resp);
-                    os.close();
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException("Error while reading request");
-                }
+    private static final Logger log = LoggerFactory
+            .getLogger(StandaloneServer.class);
+
+    public static void main(String[] args) {
+        startServerAndWait();
+    }
+
+    public static void startServerAndWait() {
+        startServerAndWait(4578);
+    }
+
+    private RemoteJUnitRequestHandler handler = new RemoteJUnitRequestHandler(
+            () -> StandaloneServer.class.getClassLoader());
+
+    public static void startServerAndWait(int port) {
+        try {
+            new StandaloneServer(port).start();
+            log.info("RemotJUnit Test Server Running");
+            Object obj = new Object();
+            synchronized (obj) {
+                obj.wait();
             }
-        });
-        server.setExecutor(null); // creates a default executor
-        server.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public Response serve(IHTTPSession session) {
+
+        try {
+            RemoteJUnitResponse resp = null;
+            ObjectInputStream in;
+            in = new ObjectInputStream(session.getInputStream());
+
+            RemoteJUnitRequest req = null;
+            try {
+                req = (RemoteJUnitRequest) in.readObject();
+            } catch (ClassNotFoundException e) {
+                log.error("Error while parsing request", e);
+                resp = new FailureResponse(e);
+            }
+
+            if (resp == null)
+                resp = handler.handle(req);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ObjectOutputStream out = new ObjectOutputStream(baos);
+            out.writeObject(resp);
+            out.close();
+            return new Response(Status.OK, "application/octet-stream",
+                    new ByteArrayInputStream(baos.toByteArray()));
+        } catch (IOException e) {
+            return new Response(Status.INTERNAL_ERROR, MIME_PLAINTEXT,
+                    "Error: " + e.getMessage());
+        }
+
     }
 }
