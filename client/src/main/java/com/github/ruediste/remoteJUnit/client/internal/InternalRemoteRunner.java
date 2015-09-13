@@ -1,24 +1,19 @@
 package com.github.ruediste.remoteJUnit.client.internal;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 import org.junit.runner.Description;
+import org.junit.runner.Result;
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.Filterable;
@@ -34,96 +29,239 @@ import org.junit.runners.model.TestClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon;
-import com.github.ruediste.remoteJUnit.common.messages.NotifierInvokedMessage;
-import com.github.ruediste.remoteJUnit.common.messages.NullMessage;
-import com.github.ruediste.remoteJUnit.common.messages.RemoteJUnitMessage;
-import com.github.ruediste.remoteJUnit.common.messages.RemoteJUnitMessageVisitor;
-import com.github.ruediste.remoteJUnit.common.messages.RequestClassMessage;
-import com.github.ruediste.remoteJUnit.common.messages.RunCompletedMessage;
-import com.github.ruediste.remoteJUnit.common.messages.RunTestRequest;
-import com.github.ruediste.remoteJUnit.common.messages.SendClassMessage;
-import com.github.ruediste.remoteJUnit.common.messages.StoppedByUserMessage;
-import com.github.ruediste.remoteJUnit.common.requests.GetToClientMessagesRequest;
-import com.github.ruediste.remoteJUnit.common.requests.RemoteJUnitRequest;
-import com.github.ruediste.remoteJUnit.common.requests.SendToServerMessagesRequest;
-import com.github.ruediste.remoteJUnit.common.responses.FailureResponse;
-import com.github.ruediste.remoteJUnit.common.responses.RemoteJUnitResponse;
-import com.github.ruediste.remoteJUnit.common.responses.TestRunStartedResponse;
-import com.github.ruediste.remoteJUnit.common.responses.ToClientMessagesResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 
 public class InternalRemoteRunner extends Runner implements Filterable,
         Sortable {
+    public interface RemoteJUnitMessage extends Serializable {
 
-    private final class ServerCode implements CodeRunnerCommon.RemoteCode {
+        <T> T accept(RemoteJUnitMessageVisitor<T> visitor);
+    }
 
-        @Override
-        public void run() {
-            // TODO Auto-generated method stub
+    public static class NotifierInvokedMessage implements RemoteJUnitMessage {
 
+        private static final long serialVersionUID = 1L;
+        public String methodName;
+        public String argTypeClass;
+        public Object arg;
+
+        public NotifierInvokedMessage(String methodName, String argTypeClass,
+                Object arg) {
+            this.methodName = methodName;
+            this.argTypeClass = argTypeClass;
+            this.arg = arg;
         }
 
         @Override
-        public byte[] handle(byte[] request) {
-            // TODO Auto-generated method stub
-            return null;
+        public <T> T accept(RemoteJUnitMessageVisitor<T> visitor) {
+            return visitor.handle(this);
         }
 
     }
 
-    private final class ToClientMessageHandler extends
-            RemoteJUnitMessageVisitor<Boolean> {
-        private BlockingQueue<RemoteJUnitMessage> toServer;
-        private RunNotifier notifier;
+    public static class RunCompletedMessage implements RemoteJUnitMessage {
+        private static final long serialVersionUID = 1L;
+        public Throwable failure;
 
-        public ToClientMessageHandler(
-                BlockingQueue<RemoteJUnitMessage> toServer, RunNotifier notifier) {
-            this.toServer = toServer;
-            this.notifier = notifier;
+        public RunCompletedMessage(Throwable failure) {
+            this.failure = failure;
         }
 
         @Override
-        public Boolean handle(RequestClassMessage sendClassMessage) {
-            log.debug("handling sendClassMessage for " + sendClassMessage.name);
-            InputStream in = Thread
-                    .currentThread()
-                    .getContextClassLoader()
-                    .getResourceAsStream(
-                            sendClassMessage.name.replace('.', '/') + ".class");
-            if (in == null) {
-                toServer.add(new SendClassMessage(sendClassMessage.name,
-                        new byte[] {}));
-                return false;
-            }
-            ByteArrayOutputStream out = null;
+        public <T> T accept(RemoteJUnitMessageVisitor<T> visitor) {
+            return visitor.handle(this);
+        }
+
+    }
+
+    public static class StoppedByUserMessage implements RemoteJUnitMessage {
+
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public <T> T accept(RemoteJUnitMessageVisitor<T> visitor) {
+            return visitor.handle(this);
+        }
+
+    }
+
+    public static class RemoteJUnitMessageVisitor<T> {
+
+        public T unHandled(RemoteJUnitMessage message) {
+            throw new UnsupportedOperationException();
+        }
+
+        public T handle(NotifierInvokedMessage notifierInvokedMessage) {
+            return unHandled(notifierInvokedMessage);
+        }
+
+        public T handle(RunCompletedMessage runCompletedMessage) {
+            return unHandled(runCompletedMessage);
+        }
+
+        public T handle(StoppedByUserMessage stoppedByUserMessage) {
+            return unHandled(stoppedByUserMessage);
+        }
+
+    }
+
+    private static final Logger log = LoggerFactory
+            .getLogger(InternalRemoteRunner.class);
+
+    private static class SessionRunNotifier extends RunNotifier {
+        private Consumer<RemoteJUnitMessage> toClientSender;
+
+        SessionRunNotifier(Consumer<RemoteJUnitMessage> toClientSender) {
+            this.toClientSender = toClientSender;
+        }
+
+        private <T> void sendMessage(String methodName, Class<T> argType, T arg) {
+            toClientSender.accept(new NotifierInvokedMessage(methodName,
+                    argType.getName(), arg));
+        }
+
+        @Override
+        public void fireTestRunStarted(Description description) {
+            sendMessage("fireTestRunStarted", Description.class, description);
+            super.fireTestRunStarted(description);
+        }
+
+        @Override
+        public void fireTestRunFinished(Result result) {
+            sendMessage("fireTestRunFinished", Result.class, result);
+            super.fireTestRunFinished(result);
+        }
+
+        @Override
+        public void fireTestStarted(Description description)
+                throws StoppedByUserException {
+            sendMessage("fireTestStarted", Description.class, description);
+            super.fireTestStarted(description);
+        }
+
+        @Override
+        public void fireTestFailure(Failure failure) {
+            sendMessage("fireTestFailure", Failure.class, failure);
+            super.fireTestFailure(failure);
+        }
+
+        @Override
+        public void fireTestAssumptionFailed(Failure failure) {
+            sendMessage("fireTestAssumptionFailed", Failure.class, failure);
+            super.fireTestAssumptionFailed(failure);
+        }
+
+        @Override
+        public void fireTestIgnored(Description description) {
+            sendMessage("fireTestIgnored", Description.class, description);
+            super.fireTestIgnored(description);
+        }
+
+        @Override
+        public void fireTestFinished(Description description) {
+            sendMessage("fireTestFinished", Description.class, description);
+            super.fireTestFinished(description);
+        }
+
+    }
+
+    private static class ServerCode implements
+            Consumer<RemoteCodeEnvironment<RemoteJUnitMessage>>, Serializable {
+        private static final long serialVersionUID = 1L;
+        Class<?> testClass;
+        Class<? extends Runner> runnerClass;
+        Description description;
+
+        public ServerCode(Class<?> testClass,
+                Class<? extends Runner> runnerClass, Description description) {
+            super();
+            this.testClass = testClass;
+            this.runnerClass = runnerClass;
+            this.description = description;
+        }
+
+        @Override
+        public void accept(RemoteCodeEnvironment<RemoteJUnitMessage> env) {
+            log.debug("starting execution of " + testClass.getName());
+            ClassLoader oldContextClassLoader = Thread.currentThread()
+                    .getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(
+                    getClass().getClassLoader());
             try {
-                out = new ByteArrayOutputStream();
-                byte[] buffer = new byte[1024];
-                while (true) {
-                    int read = in.read(buffer);
-                    if (read < 0)
-                        break;
-                    out.write(buffer, 0, read);
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+
+                final Runner runner = Utils
+                        .createRunner(runnerClass, testClass);
+
+                HashSet<Description> allDescriptions = new HashSet<>();
+                fillDescriptions(description, allDescriptions);
+
+                Utils.filter(runner, new Filter() {
+
+                    @Override
+                    public boolean shouldRun(Description desc) {
+                        return allDescriptions.contains(desc);
+                    }
+
+                    @Override
+                    public String describe() {
+                        return "Filter letting pass "
+                                + description.getChildren();
+                    }
+                });
+
+                Utils.sort(runner, new Sorter(new Comparator<Description>() {
+
+                    @Override
+                    public int compare(Description o1, Description o2) {
+                        int idx1 = 0;
+                        for (Description child : description.getChildren()) {
+                            if (o1.equals(child))
+                                break;
+                            idx1++;
+                        }
+                        int idx2 = 0;
+                        for (Description child : description.getChildren()) {
+                            if (o2.equals(child))
+                                break;
+                            idx2++;
+                        }
+                        return Integer.compare(idx1, idx2);
+                    }
+                }));
+
+                RunNotifier notifier = new SessionRunNotifier(env::sendToClient);
+                runner.run(notifier);
+                env.sendToClient(new RunCompletedMessage(null));
+            } catch (Exception e) {
+                env.sendToClient(new RunCompletedMessage(e));
             } finally {
-                if (out != null)
-                    try {
-                        out.close();
-                    } catch (IOException e1) {
-                        // swallow
-                    }
-                if (in != null)
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        // swallow
-                    }
+                Thread.currentThread().setContextClassLoader(
+                        oldContextClassLoader);
+                log.debug("finished execution of " + testClass.getName());
             }
-            toServer.add(new SendClassMessage(sendClassMessage.name, out
-                    .toByteArray()));
-            return false;
+        }
+
+        private void fillDescriptions(Description description,
+                HashSet<Description> allDescriptions) {
+            if (allDescriptions.add(description)) {
+                description.getChildren().forEach(
+                        d -> fillDescriptions(d, allDescriptions));
+            }
+        }
+    }
+
+    private final class ToClientMessageHandler extends
+            RemoteJUnitMessageVisitor<Boolean> {
+        private RunNotifier notifier;
+        private Consumer<RemoteJUnitMessage> toServerSender;
+
+        public ToClientMessageHandler(
+                Consumer<RemoteJUnitMessage> toServerSender,
+                RunNotifier notifier) {
+            this.toServerSender = toServerSender;
+            this.notifier = notifier;
         }
 
         @Override
@@ -144,45 +282,13 @@ public class InternalRemoteRunner extends Runner implements Filterable,
                         argType);
                 method.invoke(notifier, msg.arg);
             } catch (StoppedByUserException e) {
-                toServer.add(new StoppedByUserMessage());
+                toServerSender.accept(new StoppedByUserMessage());
             } catch (Exception e) {
                 log.warn("Error while invoking RunNotifier method", e);
             }
             return false;
         }
     }
-
-    private final class ToServerSender implements Runnable {
-        public volatile boolean finish;
-        private BlockingQueue<RemoteJUnitMessage> toServer;
-        private long sessionId;
-
-        public ToServerSender(BlockingQueue<RemoteJUnitMessage> toServer,
-                long sessionId) {
-            this.toServer = toServer;
-            this.sessionId = sessionId;
-        }
-
-        @Override
-        public void run() {
-            while (!finish) {
-                try {
-                    List<RemoteJUnitMessage> messages = new ArrayList<>();
-                    messages.add(toServer.take());
-                    if (finish)
-                        return;
-                    toServer.drainTo(messages);
-                    sendMessage(new SendToServerMessagesRequest(messages,
-                            sessionId));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-    }
-
-    private static final Logger log = LoggerFactory
-            .getLogger(InternalRemoteRunner.class);
 
     private Description description;
     private Map<Description, String> methodNames = new HashMap<Description, String>();
@@ -244,75 +350,19 @@ public class InternalRemoteRunner extends Runner implements Filterable,
     public void run(RunNotifier notifier) {
         notifier.fireTestStarted(description);
 
-        TestRunStartedResponse runStarted;
         try {
-            runStarted = (TestRunStartedResponse) sendMessage(new RunTestRequest(
-                    remoteRunnerClass.getName(), testClass.getName(),
-                    description));
+
+            ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
+            client.setRunnerClient(new CodeRunnerClient(endpoint));
+            client.runCode(new ServerCode(testClass, remoteRunnerClass,
+                    description), (msg, sender) -> {
+                msg.accept(new ToClientMessageHandler(sender, notifier));
+            });
         } catch (Exception e) {
             notifier.fireTestFailure(new Failure(description, e));
             return;
         }
 
-        BlockingQueue<RemoteJUnitMessage> toServer = new LinkedBlockingQueue<>();
-
-        // start client to server thread
-        ToServerSender toServerSender = new ToServerSender(toServer,
-                runStarted.sessionId);
-        new Thread(toServerSender).start();
-
-        // process incoming messages
-        try {
-            while (true) {
-                ToClientMessagesResponse messagesResponse = (ToClientMessagesResponse) sendMessage(new GetToClientMessagesRequest(
-                        runStarted.sessionId));
-                for (RemoteJUnitMessage message : messagesResponse.messages) {
-                    boolean quit = message.accept(new ToClientMessageHandler(
-                            toServer, notifier));
-                    if (quit)
-                        return;
-
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
-        } finally {
-            toServerSender.finish = true;
-            toServer.add(new NullMessage());
-        }
     }
 
-    private RemoteJUnitResponse sendMessage(RemoteJUnitRequest request) {
-        log.debug("sending " + request.getClass().getSimpleName());
-        try {
-            URL serverUrl = new URL(endpoint);
-            HttpURLConnection conn = (HttpURLConnection) serverUrl
-                    .openConnection();
-            conn.setDoOutput(true);
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/octet-stream");
-
-            ObjectOutputStream os = new ObjectOutputStream(
-                    conn.getOutputStream());
-            os.writeObject(request);
-            os.close();
-
-            ObjectInputStream in = new ObjectInputStream(conn.getInputStream());
-            RemoteJUnitResponse resp = (RemoteJUnitResponse) in.readObject();
-            in.close();
-            if (resp instanceof FailureResponse)
-                throw new RuntimeException(((FailureResponse) resp).exception);
-            return resp;
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            log.debug("sending " + request.getClass().getSimpleName() + " done");
-        }
-    }
 }

@@ -1,10 +1,11 @@
 package com.github.ruediste.remoteJUnit.test;
 
-import com.github.ruediste.remoteJUnit.server.StandaloneServer;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerStandaloneServer;
 
 public class TestServer {
 
     public static void main(String... args) {
-        StandaloneServer.startServerAndWait();
+        CodeRunnerStandaloneServer server = new CodeRunnerStandaloneServer();
+        server.startAndWait();
     }
 }

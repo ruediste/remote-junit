@@ -10,7 +10,7 @@ import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.Response.Status;
 
 public class CodeRunnerStandaloneServer extends NanoHTTPD {
-    private static final int DEFAULT_PORT = 4567;
+    private static final int DEFAULT_PORT = 4578;
 
     public CodeRunnerStandaloneServer() {
         this(DEFAULT_PORT);

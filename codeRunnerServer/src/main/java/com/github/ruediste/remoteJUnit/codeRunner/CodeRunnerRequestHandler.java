@@ -17,8 +17,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RemoteCode;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.CustomRequest;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RemoteCode;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.Request;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RunCodeRequest;
 
@@ -38,8 +38,8 @@ public class CodeRunnerRequestHandler {
 
     /**
      * @param executor
-     *            Used to execute the supplied {@link RemoteCode}s. The executor MUST
-     *            return immediately, starting the supplied runnable in a
+     *            Used to execute the supplied {@link RemoteCode}s. The executor
+     *            MUST return immediately, starting the supplied runnable in a
      *            separate thread.
      */
     public CodeRunnerRequestHandler(Executor executor) {

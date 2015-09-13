@@ -27,7 +27,7 @@ public class CodeRunnerClient {
     private Function<byte[], byte[]> requestSender;
 
     public CodeRunnerClient() {
-        this("http://localhost:4567");
+        this("http://localhost:4578");
     }
 
     public CodeRunnerClient(String endPoint) {
@@ -64,14 +64,14 @@ public class CodeRunnerClient {
         /**
          * Add the specified class along with all inner classes
          */
-        public ClassMapBuilder addClass(Class<?> cls) {
-
-            if (cls != null && addClassImpl(cls)) {
-                for (Class<?> inner : cls.getDeclaredClasses()) {
-                    if (Objects.equals(inner.getEnclosingClass(), cls))
-                        addClass(inner);
+        public ClassMapBuilder addClass(Class<?>... classes) {
+            for (Class<?> cls : classes)
+                if (cls != null && addClassImpl(cls)) {
+                    for (Class<?> inner : cls.getDeclaredClasses()) {
+                        if (Objects.equals(inner.getEnclosingClass(), cls))
+                            addClass(inner);
+                    }
                 }
-            }
             return this;
         }
 

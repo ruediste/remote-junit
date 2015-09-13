@@ -18,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.client.internal.InternalRemoteRunner;
-import com.github.ruediste.remoteJUnit.common.Utils;
+import com.github.ruediste.remoteJUnit.client.internal.Utils;
 
 public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 

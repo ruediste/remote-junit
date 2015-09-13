@@ -26,10 +26,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
     private final static Logger log = LoggerFactory
             .getLogger(ClassLoadingRemoteCodeRunnerClient.class);
 
-    private interface RemoteJUnitMessage extends Serializable {
+    private interface RemoteCodeMessage extends Serializable {
     }
 
-    public static class RequestClassMessage implements RemoteJUnitMessage {
+    public static class RequestClassMessage implements RemoteCodeMessage {
 
         private static final long serialVersionUID = 1L;
         public String name;
@@ -40,7 +40,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     }
 
-    public static class ServerCodeExited implements RemoteJUnitMessage {
+    public static class ServerCodeExited implements RemoteCodeMessage {
         private Throwable exception;
 
         public ServerCodeExited(Throwable e) {
@@ -50,11 +50,11 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class ServerCodeExitReceived implements RemoteJUnitMessage {
+    public static class ServerCodeExitReceived implements RemoteCodeMessage {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class SendClassMessage implements RemoteJUnitMessage {
+    public static class SendClassMessage implements RemoteCodeMessage {
         private static final long serialVersionUID = 1L;
         public byte[] data;
         public String name;
@@ -66,7 +66,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     }
 
-    public static class CustomMessageWrapper implements RemoteJUnitMessage {
+    public static class CustomMessageWrapper implements RemoteCodeMessage {
         private static final long serialVersionUID = 1L;
 
         byte[] message;
@@ -77,42 +77,41 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     }
 
-    public interface RemoteJUnitResponse extends Serializable {
+    public interface RemoteCodeResponse extends Serializable {
 
     }
 
-    public static class EmptyResponse implements RemoteJUnitResponse {
+    public static class EmptyResponse implements RemoteCodeResponse {
 
         private static final long serialVersionUID = 1L;
 
     }
 
-    public static class ToClientMessagesResponse implements RemoteJUnitResponse {
+    public static class ToClientMessagesResponse implements RemoteCodeResponse {
         private static final long serialVersionUID = 1L;
-        public List<RemoteJUnitMessage> messages;
+        public List<RemoteCodeMessage> messages;
 
-        public ToClientMessagesResponse(List<RemoteJUnitMessage> messages) {
+        public ToClientMessagesResponse(List<RemoteCodeMessage> messages) {
             this.messages = messages;
         }
 
     }
 
-    public interface RemoteJUnitRequest extends Serializable {
+    public interface RemoteCodeRequest extends Serializable {
     }
 
-    public static class GetToClientMessagesRequest implements
-            RemoteJUnitRequest {
+    public static class GetToClientMessagesRequest implements RemoteCodeRequest {
         private static final long serialVersionUID = 1L;
 
     }
 
     public static class SendToServerMessagesRequest implements
-            RemoteJUnitRequest {
+            RemoteCodeRequest {
         private static final long serialVersionUID = 1L;
 
-        public List<RemoteJUnitMessage> messages = new ArrayList<>();
+        public List<RemoteCodeMessage> messages = new ArrayList<>();
 
-        public SendToServerMessagesRequest(List<RemoteJUnitMessage> messages) {
+        public SendToServerMessagesRequest(List<RemoteCodeMessage> messages) {
             this.messages = messages;
         }
 
@@ -201,7 +200,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
 
         private final BlockingQueue<TMessage> toServer = new LinkedBlockingQueue<>();
-        private final BlockingQueue<RemoteJUnitMessage> toClient = new LinkedBlockingQueue<RemoteJUnitMessage>();
+        private final BlockingQueue<RemoteCodeMessage> toClient = new LinkedBlockingQueue<RemoteCodeMessage>();
 
         private Supplier<ClassLoader> parentClassLoaderSupplier;
 
@@ -244,7 +243,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
         @Override
         public byte[] handle(byte[] requestBa) {
-            RemoteJUnitRequest request = (RemoteJUnitRequest) SerializationHelper
+            RemoteCodeRequest request = (RemoteCodeRequest) SerializationHelper
                     .toObject(requestBa, getClass().getClassLoader());
             log.debug("handling " + request.getClass().getSimpleName());
             try {
@@ -258,9 +257,9 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
 
         @SuppressWarnings("unchecked")
-        private RemoteJUnitResponse handle(RemoteJUnitRequest request) {
+        private RemoteCodeResponse handle(RemoteCodeRequest request) {
             if (request instanceof GetToClientMessagesRequest) {
-                List<RemoteJUnitMessage> messages = new ArrayList<>();
+                List<RemoteCodeMessage> messages = new ArrayList<>();
                 try {
                     messages.add(toClient.take());
                 } catch (InterruptedException e) {
@@ -271,7 +270,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             } else if (request instanceof SendToServerMessagesRequest) {
                 SendToServerMessagesRequest sendToServerMessagesRequest = (SendToServerMessagesRequest) request;
                 List<TMessage> msgs = new ArrayList<>();
-                for (RemoteJUnitMessage message : sendToServerMessagesRequest.messages) {
+                for (RemoteCodeMessage message : sendToServerMessagesRequest.messages) {
                     if (message instanceof ServerCodeExitReceived) {
                         exitConfirmationReceived.release();
                     } else if (message instanceof SendClassMessage) {
@@ -315,10 +314,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
     }
 
     private final class ToServerSender implements Runnable {
-        private BlockingQueue<RemoteJUnitMessage> toServer;
+        private BlockingQueue<RemoteCodeMessage> toServer;
         private RequestChannel channel;
 
-        public ToServerSender(BlockingQueue<RemoteJUnitMessage> toServer,
+        public ToServerSender(BlockingQueue<RemoteCodeMessage> toServer,
                 RequestChannel channel) {
             this.toServer = toServer;
             this.channel = channel;
@@ -328,7 +327,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         public void run() {
             while (true) {
                 try {
-                    List<RemoteJUnitMessage> messages = new ArrayList<>();
+                    List<RemoteCodeMessage> messages = new ArrayList<>();
                     messages.add(toServer.take());
                     toServer.drainTo(messages);
                     channel.sendRequest(new SendToServerMessagesRequest(
@@ -347,7 +346,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     public static class MessageChannel<TMessage> {
         private final BlockingQueue<TMessage> toClient = new LinkedBlockingQueue<>();
-        private final BlockingQueue<RemoteJUnitMessage> toServer = new LinkedBlockingQueue<>();
+        private final BlockingQueue<RemoteCodeMessage> toServer = new LinkedBlockingQueue<>();
 
         public BlockingQueue<TMessage> getToClient() {
             return toClient;
@@ -373,7 +372,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             client = new CodeRunnerClient();
         }
         RequestChannel channel = client.startCode(clCode, new ClassMapBuilder()
-                .addClass(ClassLoadingRemoteCodeRunnerClient.class));
+                .addClass(ClassLoadingRemoteCodeRunnerClient.class,
+                        SerializationHelper.class));
 
         MessageChannel<TMessage> msgChannel = new MessageChannel<>();
 
@@ -386,7 +386,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         messageProcessingLoop: while (true) {
             ToClientMessagesResponse messagesResponse = (ToClientMessagesResponse) channel
                     .sendRequest(new GetToClientMessagesRequest());
-            for (RemoteJUnitMessage message : messagesResponse.messages) {
+            for (RemoteCodeMessage message : messagesResponse.messages) {
                 if (message instanceof CustomMessageWrapper) {
                     clientMessageHandler
                             .accept((TMessage) SerializationHelper
@@ -395,9 +395,13 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                 } else if (message instanceof ServerCodeExited) {
                     Throwable exception = ((ServerCodeExited) message).exception;
                     msgChannel.toServer.add(new ServerCodeExitReceived());
-                    if (exception != null)
-                        throw new RuntimeException("Error in server code",
-                                exception);
+                    if (exception != null) {
+                        if (exception instanceof RuntimeException)
+                            throw (RuntimeException) exception;
+                        else
+                            throw new RuntimeException("Error in server code",
+                                    exception);
+                    }
 
                     break messageProcessingLoop;
                 } else if (message instanceof RequestClassMessage) {

@@ -12,6 +12,6 @@ public class SimpleJUnitTest {
 
     @Test
     public void simple() {
-        assertEquals("foo", "bar");
+        assertEquals("foo", "foo");
     }
 }
