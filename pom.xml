@@ -13,6 +13,7 @@
 		<module>codeRunnerClient</module>
 		<module>codeRunnerCommon</module>
 		<module>codeRunnerServer</module>
+		<module>codeRunnerTest</module>
 	</modules>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

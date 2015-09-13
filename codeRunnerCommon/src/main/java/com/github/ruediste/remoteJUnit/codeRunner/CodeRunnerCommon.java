@@ -5,7 +5,7 @@ import java.util.Map;
 
 public class CodeRunnerCommon {
 
-    public interface Code extends Runnable {
+    public interface RemoteCode extends Runnable, Serializable {
         /**
          * Called in the remote VM. The code can receive requests while this
          * method is running.
@@ -71,5 +71,10 @@ public class CodeRunnerCommon {
     public static class CustomResponse implements Response {
         private static final long serialVersionUID = 1L;
         public byte[] payload;
+
+        public CustomResponse(byte[] payload) {
+            this.payload = payload;
+        }
+
     }
 }

@@ -6,12 +6,16 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon;
-
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.Response.Status;
 
 public class CodeRunnerStandaloneServer extends NanoHTTPD {
+    private static final int DEFAULT_PORT = 4567;
+
+    public CodeRunnerStandaloneServer() {
+        this(DEFAULT_PORT);
+    }
+
     public CodeRunnerStandaloneServer(int port) {
         super(port);
     }
@@ -19,19 +23,18 @@ public class CodeRunnerStandaloneServer extends NanoHTTPD {
     private static final Logger log = LoggerFactory
             .getLogger(CodeRunnerStandaloneServer.class);
 
-    public static void main(String[] args) {
-        startServerAndWait();
+    private CodeRunnerRequestHandler handler;
+
+    @Override
+    public void start() throws IOException {
+        if (handler == null)
+            handler = new CodeRunnerRequestHandler();
+        super.start();
     }
 
-    public static void startServerAndWait() {
-        startServerAndWait(4578);
-    }
-
-    private CodeRunnerRequestHandler handler = new CodeRunnerRequestHandler();
-
-    public static void startServerAndWait(int port) {
+    public void startAndWait() {
         try {
-            new CodeRunnerStandaloneServer(port).start();
+            start();
             log.info("CodeRunner Server Running");
             Object obj = new Object();
             synchronized (obj) {
@@ -47,17 +50,25 @@ public class CodeRunnerStandaloneServer extends NanoHTTPD {
 
         try {
 
-            CodeRunnerCommon.Response resp = handler.handle(session
-                    .getInputStream());
+            CodeRunnerCommon.Response resp = getHandler().handle(
+                    session.getInputStream());
 
+            byte[] ba = CodeRunnerRequestHandler.toByteArray(resp);
             return new Response(Status.OK, "application/octet-stream",
-                    new ByteArrayInputStream(
-                            CodeRunnerRequestHandler.toByteArray(resp)));
+                    new ByteArrayInputStream(ba));
         } catch (IOException e) {
             return new Response(Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                     "Error: " + e.getMessage());
         }
 
+    }
+
+    public CodeRunnerRequestHandler getHandler() {
+        return handler;
+    }
+
+    public void setHandler(CodeRunnerRequestHandler handler) {
+        this.handler = handler;
     }
 
 }

@@ -17,8 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.Code;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RemoteCode;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.CustomRequest;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.Request;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RunCodeRequest;
@@ -29,7 +28,7 @@ public class CodeRunnerRequestHandler {
             .getLogger(CodeRunnerRequestHandler.class);
 
     private AtomicLong nextCodeId = new AtomicLong(0);
-    private ConcurrentMap<Long, Code> codes = new ConcurrentHashMap<>();
+    private ConcurrentMap<Long, RemoteCode> remoteCodes = new ConcurrentHashMap<>();
 
     private Executor executor;
 
@@ -39,7 +38,7 @@ public class CodeRunnerRequestHandler {
 
     /**
      * @param executor
-     *            Used to execute the supplied {@link Code}s. The executor MUST
+     *            Used to execute the supplied {@link RemoteCode}s. The executor MUST
      *            return immediately, starting the supplied runnable in a
      *            separate thread.
      */
@@ -91,15 +90,22 @@ public class CodeRunnerRequestHandler {
     }
 
     public CodeRunnerCommon.Response handleRequest(CodeRunnerCommon.Request req) {
+        log.debug("Handling " + req.getClass().getSimpleName());
         if (req instanceof CodeRunnerCommon.CustomRequest) {
             CustomRequest customRequest = (CustomRequest) req;
-            return null;
+            RemoteCode remoteCode = remoteCodes.get(customRequest.runId);
+            if (remoteCode != null)
+                return new CodeRunnerCommon.CustomResponse(
+                        remoteCode.handle(customRequest.payload));
+            else
+                return new CodeRunnerCommon.FailureResponse(
+                        new RuntimeException("Code already completed"));
         } else if (req instanceof RunCodeRequest) {
             RunCodeRequest runRequest = (RunCodeRequest) req;
             long codeId = nextCodeId.getAndIncrement();
             CodeBootstrapClassLoader cl = new CodeBootstrapClassLoader(
                     runRequest.bootstrapClasses);
-            Code code;
+            RemoteCode remoteCode;
             try (ObjectInputStream in = new ObjectInputStream(
                     new ByteArrayInputStream(((RunCodeRequest) req).code)) {
                 @Override
@@ -112,18 +118,20 @@ public class CodeRunnerRequestHandler {
                     }
                 }
             }) {
-                code = (Code) in.readObject();
+                remoteCode = (RemoteCode) in.readObject();
             } catch (IOException | ClassNotFoundException e) {
                 return new CodeRunnerCommon.FailureResponse(e);
             }
-            codes.put(codeId, code);
+            remoteCodes.put(codeId, remoteCode);
+            log.debug("invoking code");
             executor.execute(() -> {
                 try {
-                    code.run();
+                    remoteCode.run();
                 } finally {
-                    codes.remove(codeId);
+                    remoteCodes.remove(codeId);
                 }
             });
+            log.debug("sending codeStartedResponse. CodeId: " + codeId);
             return new CodeRunnerCommon.CodeStartedResponse(codeId);
         } else
             return new CodeRunnerCommon.FailureResponse(new RuntimeException(

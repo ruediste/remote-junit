@@ -55,7 +55,7 @@ import com.github.ruediste.remoteJUnit.common.responses.ToClientMessagesResponse
 public class InternalRemoteRunner extends Runner implements Filterable,
         Sortable {
 
-    private final class ServerCode implements CodeRunnerCommon.Code {
+    private final class ServerCode implements CodeRunnerCommon.RemoteCode {
 
         @Override
         public void run() {
