@@ -34,6 +34,7 @@ import org.junit.runners.model.TestClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon;
 import com.github.ruediste.remoteJUnit.common.messages.NotifierInvokedMessage;
 import com.github.ruediste.remoteJUnit.common.messages.NullMessage;
 import com.github.ruediste.remoteJUnit.common.messages.RemoteJUnitMessage;
@@ -53,6 +54,22 @@ import com.github.ruediste.remoteJUnit.common.responses.ToClientMessagesResponse
 
 public class InternalRemoteRunner extends Runner implements Filterable,
         Sortable {
+
+    private final class ServerCode implements CodeRunnerCommon.Code {
+
+        @Override
+        public void run() {
+            // TODO Auto-generated method stub
+
+        }
+
+        @Override
+        public byte[] handle(byte[] request) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+    }
 
     private final class ToClientMessageHandler extends
             RemoteJUnitMessageVisitor<Boolean> {

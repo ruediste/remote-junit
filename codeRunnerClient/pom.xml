@@ -6,16 +6,12 @@
 		<artifactId>remoteJUnit-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<artifactId>remoteJUnit-client</artifactId>
+	<artifactId>remoteJUnit-codeRunnerClient</artifactId>
+
 	<dependencies>
 		<dependency>
 			<groupId>com.github.ruediste.remoteJUnit</groupId>
-			<artifactId>remoteJUnit-common</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.github.ruediste.remoteJUnit</groupId>
-			<artifactId>remoteJUnit-codeRunnerClient</artifactId>
+			<artifactId>remoteJUnit-codeRunnerCommon</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>

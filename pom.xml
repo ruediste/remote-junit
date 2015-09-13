@@ -10,6 +10,9 @@
 		<module>common</module>
 		<module>client</module>
 		<module>test</module>
+		<module>codeRunnerClient</module>
+		<module>codeRunnerCommon</module>
+		<module>codeRunnerServer</module>
 	</modules>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
