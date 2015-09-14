@@ -6,29 +6,25 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.lang.reflect.Constructor;
+import java.util.function.Function;
 
 public class SerializationHelper {
 
-    private static final class CustomClassloaderObjectInputStream extends
-            ObjectInputStream {
-        private ClassLoader classLoader;
-
-        private CustomClassloaderObjectInputStream(InputStream in,
-                ClassLoader classLoader) throws IOException {
-            super(in);
-            this.classLoader = classLoader;
-        }
+    /**
+     * Helper class loaded with the {@link CodeBootstrapClassLoader}, causing
+     * deserialization to use that class loader too.
+     */
+    private static class DeserializationHelper implements
+            Function<byte[], Object> {
 
         @Override
-        protected java.lang.Class<?> resolveClass(java.io.ObjectStreamClass desc)
-                throws IOException, ClassNotFoundException {
-            if (classLoader == null)
-                return super.resolveClass(desc);
-
-            try {
-                return classLoader.loadClass(desc.getName());
-            } catch (ClassNotFoundException e) {
-                return super.resolveClass(desc);
+        public Object apply(byte[] t) {
+            try (ObjectInputStream ois = new ObjectInputStream(
+                    new ByteArrayInputStream(t))) {
+                return ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
         }
     }
@@ -37,11 +33,41 @@ public class SerializationHelper {
         return toObject(bytes, null);
     }
 
+    private static class HelperClassLoader extends ClassLoader {
+        HelperClassLoader(ClassLoader parent) {
+            super(parent);
+            String name = DeserializationHelper.class.getName();
+            try (InputStream is = getClass().getClassLoader()
+                    .getResourceAsStream(name.replace('.', '/') + ".class")) {
+                int read;
+                byte[] buffer = new byte[128];
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                while ((read = is.read(buffer)) > 0) {
+                    os.write(buffer, 0, read);
+                }
+                byte[] data = os.toByteArray();
+                defineClass(name, data, 0, data.length);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    }
+
     public static Object toObject(byte[] bytes, ClassLoader cl) {
-        try (ObjectInputStream in = new CustomClassloaderObjectInputStream(
-                new ByteArrayInputStream(bytes), cl)) {
-            return in.readObject();
-        } catch (IOException | ClassNotFoundException e) {
+        if (cl == null) {
+            return new DeserializationHelper().apply(bytes);
+        }
+        try {
+            Constructor<?> cst = new HelperClassLoader(cl).loadClass(
+                    DeserializationHelper.class.getName())
+                    .getDeclaredConstructor();
+            cst.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Function<byte[], Object> helper = (Function<byte[], Object>) cst
+                    .newInstance();
+            return helper.apply(bytes);
+        } catch (Exception e) {
             throw new RuntimeException("Error during deserialization", e);
         }
     }

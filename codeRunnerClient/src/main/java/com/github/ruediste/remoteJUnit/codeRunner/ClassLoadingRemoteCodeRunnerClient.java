@@ -4,6 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,10 +17,15 @@ import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.jar.JarFile;
 
+import org.reflections.Reflections;
+import org.reflections.util.ConfigurationBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.ruediste.remoteJUnit.codeRunner.ClassPathWalker.ClassPathVisitResult;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassPathWalker.ClassPathVisitor;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.RequestChannel;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.FailureResponse;
@@ -231,6 +239,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                         .toObject(codeDelegate, classLoader)).accept(this);
                 toClient.add(new ServerCodeExited(null));
             } catch (Throwable e) {
+                log.info("Error occurred: ", e);
                 toClient.add(new ServerCodeExited(e));
             } finally {
                 try {
@@ -300,7 +309,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                 Supplier<ClassLoader> parentClassLoaderSupplier) {
             this.parentClassLoaderSupplier = parentClassLoaderSupplier;
         }
-
+        (URLClassLoader) getClass().getClassLoader()
         @Override
         public BlockingQueue<TMessage> getToServerMessages() {
             return toServer;
@@ -351,7 +360,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         public BlockingQueue<TMessage> getToClient() {
             return toClient;
         }
-
+        (URLClassLoader) getClass().getClassLoader()
         public void sendMessage(TMessage msg) {
             toServer.add(new CustomMessageWrapper(SerializationHelper
                     .toByteArray(msg)));
@@ -361,6 +370,35 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     private Supplier<ClassLoader> parentClassLoaderSupplier;
     private CodeRunnerClient client;
+
+    public ClassLoadingRemoteCodeRunnerClient() {
+       ClassPathWalker.scan(getClass().getClassLoader(), new ClassPathVisitor() {
+        
+        @Override
+        public ClassPathVisitResult visitRootDirectory(Path rootDirectory,
+                ClassLoader classloader) {
+            return ClassPathVisitResult.SKIP_CONTENTS;
+        }
+        
+        @Override
+        public void visitResource(String name, ClassLoader classLoader,
+                Supplier<InputStream> inputStreamSupplier) {
+            
+        }
+        
+        @Override
+        public ClassPathVisitResult visitJarFile(Path path, JarFile jarFile,
+                ClassLoader classloader) {
+            return ClassPathVisitResult.CONTINUE;
+        }
+        
+        @Override
+        public void visitClass(String className, ClassLoader classLoader,
+                Supplier<InputStream> inputStreamSupplier) {
+            
+        }
+    });
+    }
 
     @SuppressWarnings("unchecked")
     public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
@@ -396,60 +434,56 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     Throwable exception = ((ServerCodeExited) message).exception;
                     msgChannel.toServer.add(new ServerCodeExitReceived());
                     if (exception != null) {
-                        if (exception instanceof RuntimeException)
-                            throw (RuntimeException) exception;
-                        else
-                            throw new RuntimeException("Error in server code",
-                                    exception);
+                        throw new RuntimeException("Error in server code",
+                                exception);
                     }
 
                     break messageProcessingLoop;
                 } else if (message instanceof RequestClassMessage) {
                     RequestClassMessage sendClassMessage = (RequestClassMessage) message;
-                    log.debug("handling sendClassMessage for "
-                            + sendClassMessage.name);
-                    InputStream in = Thread
-                            .currentThread()
-                            .getContextClassLoader()
-                            .getResourceAsStream(
-                                    sendClassMessage.name.replace('.', '/')
-                                            + ".class");
-                    if (in == null) {
-                        msgChannel.toServer.add(new SendClassMessage(
-                                sendClassMessage.name, new byte[] {}));
-
-                    } else {
-                        ByteArrayOutputStream out = null;
-                        try {
-                            out = new ByteArrayOutputStream();
-                            byte[] buffer = new byte[1024];
-                            while (true) {
-                                int read = in.read(buffer);
-                                if (read < 0)
-                                    break;
-                                out.write(buffer, 0, read);
-                            }
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        } finally {
-                            if (out != null)
-                                try {
-                                    out.close();
-                                } catch (IOException e1) {
-                                    // swallow
-                                }
-                            if (in != null)
-                                try {
-                                    in.close();
-                                } catch (IOException e) {
-                                    // swallow
-                                }
-                        }
-                        msgChannel.toServer.add(new SendClassMessage(
-                                sendClassMessage.name, out.toByteArray()));
-                    }
+                    String name = sendClassMessage.name;
+                    log.debug("handling sendClassMessage for " + name);
+                    sendClass(msgChannel, name);
                 }
             }
+        }
+    }
+
+    private void sendClass(MessageChannel<TMessage> msgChannel, String name) {
+        InputStream in = Thread.currentThread().getContextClassLoader()
+                .getResourceAsStream(name.replace('.', '/') + ".class");
+        if (in == null) {
+            msgChannel.toServer.add(new SendClassMessage(name, new byte[] {}));
+
+        } else {
+            ByteArrayOutputStream out = null;
+            try {
+                out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                while (true) {
+                    int read = in.read(buffer);
+                    if (read < 0)
+                        break;
+                    out.write(buffer, 0, read);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                if (out != null)
+                    try {
+                        out.close();
+                    } catch (IOException e1) {
+                        // swallow
+                    }
+                if (in != null)
+                    try {
+                        in.close();
+                    } catch (IOException e) {
+                        // swallow
+                    }
+            }
+            msgChannel.toServer.add(new SendClassMessage(name, out
+                    .toByteArray()));
         }
     }
 

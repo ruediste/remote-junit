@@ -6,13 +6,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.ObjectStreamClass;
+import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,14 +80,63 @@ public class CodeRunnerRequestHandler {
         }
 
         @Override
-        protected java.lang.Class<?> findClass(String name)
+        public InputStream getResourceAsStream(String name) {
+            if (name.endsWith(".class")) {
+                byte[] data = classData.get(name.substring(0,
+                        name.length() - ".class".length()).replace('/', '.'));
+                if (data != null)
+                    return new ByteArrayInputStream(data);
+            }
+            return super.getResourceAsStream(name);
+        }
+
+        @Override
+        public java.lang.Class<?> findClass(String name)
                 throws ClassNotFoundException {
+
             byte[] data = classData.get(name);
             if (data != null) {
                 return defineClass(name, data, 0, data.length);
-            } else
-                return super.findClass(name);
+            } else {
+                if (DeserializationHelper.class.getName().equals(name)) {
+                    try (InputStream is = getResourceAsStream(name.replace('.',
+                            '/') + ".class")) {
+                        int read;
+                        byte[] buffer = new byte[128];
+                        ByteArrayOutputStream os = new ByteArrayOutputStream();
+                        while ((read = is.read(buffer)) > 0) {
+                            os.write(buffer, 0, read);
+                        }
+                        data = os.toByteArray();
+                        return defineClass(name, data, 0, data.length);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                } else
+                    return super.findClass(name);
+            }
         };
+    }
+
+    /**
+     * Helper class loaded with the {@link CodeBootstrapClassLoader}, causing
+     * deserialization to use that class loader too.
+     */
+    private static class DeserializationHelper implements
+            Function<byte[], Object> {
+        @SuppressWarnings("unused")
+        public DeserializationHelper() {
+        }
+
+        @Override
+        public Object apply(byte[] t) {
+            try (ObjectInputStream ois = new ObjectInputStream(
+                    new ByteArrayInputStream(t))) {
+                return ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public CodeRunnerCommon.Response handleRequest(CodeRunnerCommon.Request req) {
@@ -105,21 +155,19 @@ public class CodeRunnerRequestHandler {
             long codeId = nextCodeId.getAndIncrement();
             CodeBootstrapClassLoader cl = new CodeBootstrapClassLoader(
                     runRequest.bootstrapClasses);
+
             RemoteCode remoteCode;
-            try (ObjectInputStream in = new ObjectInputStream(
-                    new ByteArrayInputStream(((RunCodeRequest) req).code)) {
-                @Override
-                protected Class<?> resolveClass(ObjectStreamClass desc)
-                        throws IOException, ClassNotFoundException {
-                    try {
-                        return cl.loadClass(desc.getName());
-                    } catch (ClassNotFoundException e) {
-                        return super.resolveClass(desc);
-                    }
-                }
-            }) {
-                remoteCode = (RemoteCode) in.readObject();
-            } catch (IOException | ClassNotFoundException e) {
+            try {
+                Class<?> cls = cl.findClass(DeserializationHelper.class
+                        .getName());
+                Constructor<?> constructor = cls.getDeclaredConstructor();
+                constructor.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Function<byte[], Object> deserializationHelper = (Function<byte[], Object>) constructor
+                        .newInstance();
+                remoteCode = (RemoteCode) deserializationHelper
+                        .apply(((RunCodeRequest) req).code);
+            } catch (Exception e) {
                 return new CodeRunnerCommon.FailureResponse(e);
             }
             remoteCodes.put(codeId, remoteCode);

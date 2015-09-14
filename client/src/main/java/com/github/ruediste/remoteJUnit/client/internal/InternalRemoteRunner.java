@@ -348,8 +348,6 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
     @Override
     public void run(RunNotifier notifier) {
-        notifier.fireTestStarted(description);
-
         try {
 
             ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
