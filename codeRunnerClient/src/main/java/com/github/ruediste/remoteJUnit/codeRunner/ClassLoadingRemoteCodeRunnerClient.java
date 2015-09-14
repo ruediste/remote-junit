@@ -1,13 +1,18 @@
 package com.github.ruediste.remoteJUnit.codeRunner;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,15 +22,13 @@ import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 
-import org.reflections.Reflections;
-import org.reflections.util.ConfigurationBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.ClassPathWalker.ClassPathVisitResult;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassPathWalker.ClassPathVisitor;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.RequestChannel;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.FailureResponse;
@@ -70,6 +73,16 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         public SendClassMessage(String name, byte[] data) {
             this.name = name;
             this.data = data;
+        }
+
+    }
+
+    public static class SendJarsMessage implements RemoteCodeMessage {
+        private static final long serialVersionUID = 1L;
+        public List<byte[]> jars;
+
+        public SendJarsMessage(List<byte[]> jars) {
+            this.jars = jars;
         }
 
     }
@@ -198,6 +211,33 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     classData.notifyAll();
                 }
             }
+
+            public void addJars(List<byte[]> jars) {
+                HashMap<String, byte[]> classes = new HashMap<>();
+                for (byte[] jar : jars) {
+                    try (JarInputStream in = new JarInputStream(
+                            new ByteArrayInputStream(jar))) {
+                        JarEntry nextJarEntry;
+                        while ((nextJarEntry = in.getNextJarEntry()) != null) {
+                            String name = nextJarEntry.getName();
+                            if (name.endsWith(".class")) {
+                                String className = name.substring(0,
+                                        name.length() - ".class".length())
+                                        .replace('/', '.');
+                                classes.put(className, toByteArray(in));
+                            }
+                        }
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(
+                                "Error while reading jar files", e);
+                    }
+                }
+                synchronized (classData) {
+                    classData.putAll(classes);
+                    classData.notifyAll();
+                }
+            }
         }
 
         private SessionClassLoader classLoader;
@@ -284,6 +324,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                         exitConfirmationReceived.release();
                     } else if (message instanceof SendClassMessage) {
                         classLoader.addClass((SendClassMessage) message);
+                    } else if (message instanceof SendJarsMessage) {
+                        classLoader.addJars(((SendJarsMessage) message).jars);
                     } else if (message instanceof CustomMessageWrapper) {
                         CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
                         msgs.add((TMessage) SerializationHelper.toObject(
@@ -309,7 +351,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                 Supplier<ClassLoader> parentClassLoaderSupplier) {
             this.parentClassLoaderSupplier = parentClassLoaderSupplier;
         }
-        (URLClassLoader) getClass().getClassLoader()
+
         @Override
         public BlockingQueue<TMessage> getToServerMessages() {
             return toServer;
@@ -360,7 +402,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         public BlockingQueue<TMessage> getToClient() {
             return toClient;
         }
-        (URLClassLoader) getClass().getClassLoader()
+
         public void sendMessage(TMessage msg) {
             toServer.add(new CustomMessageWrapper(SerializationHelper
                     .toByteArray(msg)));
@@ -370,35 +412,6 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     private Supplier<ClassLoader> parentClassLoaderSupplier;
     private CodeRunnerClient client;
-
-    public ClassLoadingRemoteCodeRunnerClient() {
-       ClassPathWalker.scan(getClass().getClassLoader(), new ClassPathVisitor() {
-        
-        @Override
-        public ClassPathVisitResult visitRootDirectory(Path rootDirectory,
-                ClassLoader classloader) {
-            return ClassPathVisitResult.SKIP_CONTENTS;
-        }
-        
-        @Override
-        public void visitResource(String name, ClassLoader classLoader,
-                Supplier<InputStream> inputStreamSupplier) {
-            
-        }
-        
-        @Override
-        public ClassPathVisitResult visitJarFile(Path path, JarFile jarFile,
-                ClassLoader classloader) {
-            return ClassPathVisitResult.CONTINUE;
-        }
-        
-        @Override
-        public void visitClass(String className, ClassLoader classLoader,
-                Supplier<InputStream> inputStreamSupplier) {
-            
-        }
-    });
-    }
 
     @SuppressWarnings("unchecked")
     public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
@@ -449,42 +462,95 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
     }
 
+    public HashMap<String, List<File>> jarMap = new HashMap<>();
+
+    public ClassLoadingRemoteCodeRunnerClient() {
+        if (getClass().getClassLoader() instanceof URLClassLoader) {
+            URLClassLoader cl = (URLClassLoader) getClass().getClassLoader();
+            for (URL url : cl.getURLs()) {
+                URI uri;
+                try {
+                    uri = url.toURI();
+                    if (uri.getScheme().equals("file")) {
+                        File file = new File(uri);
+                        if (file.exists()) {
+                            JarFile jarFile = new JarFile(file);
+                            Enumeration<JarEntry> entries = jarFile.entries();
+                            while (entries.hasMoreElements()) {
+                                JarEntry entry = entries.nextElement();
+                                if (entry.isDirectory()
+                                        || entry.getName().equals(
+                                                JarFile.MANIFEST_NAME)) {
+                                    continue;
+                                }
+                                List<File> list = jarMap.get(entry.getName());
+                                if (list == null) {
+                                    list = new ArrayList<>();
+                                    jarMap.put(entry.getName(), list);
+                                }
+                                list.add(file);
+                            }
+                        }
+                    }
+                } catch (URISyntaxException | IOException e) {
+                    // swallow
+                }
+            }
+        }
+    }
+
     private void sendClass(MessageChannel<TMessage> msgChannel, String name) {
-        InputStream in = Thread.currentThread().getContextClassLoader()
-                .getResourceAsStream(name.replace('.', '/') + ".class");
+        String resourceName = name.replace('.', '/') + ".class";
+        {
+            List<File> list = jarMap.get(resourceName);
+            if (list != null) {
+                ArrayList<byte[]> jars = new ArrayList<>();
+                for (File file : list) {
+                    try (InputStream is = new FileInputStream(file)) {
+                        jars.add(toByteArray(is));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                msgChannel.toServer.add(new SendJarsMessage(jars));
+                return;
+            }
+
+        }
+        ClassLoader classLoader = Thread.currentThread()
+                .getContextClassLoader();
+        InputStream in = classLoader.getResourceAsStream(resourceName);
         if (in == null) {
             msgChannel.toServer.add(new SendClassMessage(name, new byte[] {}));
-
         } else {
-            ByteArrayOutputStream out = null;
-            try {
-                out = new ByteArrayOutputStream();
-                byte[] buffer = new byte[1024];
-                while (true) {
-                    int read = in.read(buffer);
-                    if (read < 0)
-                        break;
-                    out.write(buffer, 0, read);
-                }
+            try (InputStream ins = in) {
+                msgChannel.toServer.add(new SendClassMessage(name,
+                        toByteArray(in)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
-            } finally {
-                if (out != null)
-                    try {
-                        out.close();
-                    } catch (IOException e1) {
-                        // swallow
-                    }
-                if (in != null)
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        // swallow
-                    }
             }
-            msgChannel.toServer.add(new SendClassMessage(name, out
-                    .toByteArray()));
         }
+    }
+
+    private static byte[] toByteArray(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            byte[] buffer = new byte[1024];
+            while (true) {
+                int read = in.read(buffer);
+                if (read < 0)
+                    break;
+                out.write(buffer, 0, read);
+            }
+        } finally {
+            try {
+                out.close();
+            } catch (IOException e1) {
+                // swallow
+            }
+
+        }
+        return out.toByteArray();
     }
 
     public Supplier<ClassLoader> getParentClassLoaderSupplier() {
