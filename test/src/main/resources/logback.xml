@@ -13,5 +13,7 @@
   <root level="DEBUG">          
     <appender-ref ref="STDOUT" />
   </root>
-  <logger name="com.github.ruediste.remoteJUnit.codeRunner" level="INFO"/>
+  <logger name="com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient" level="INFO"/>
+  <logger name="com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerRequestHandler" level="INFO"/>
+  <logger name="com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient" level="INFO"/>
 </configuration>

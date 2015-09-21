@@ -9,14 +9,13 @@ import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
 import java.util.function.Function;
 
-public class SerializationHelper {
+class SerializationHelper {
 
     /**
      * Helper class loaded with the {@link CodeBootstrapClassLoader}, causing
      * deserialization to use that class loader too.
      */
-    private static class DeserializationHelper implements
-            Function<byte[], Object> {
+    static class DeserializationHelper implements Function<byte[], Object> {
 
         @Override
         public Object apply(byte[] t) {

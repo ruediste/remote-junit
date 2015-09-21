@@ -1,9 +1,5 @@
 package com.github.ruediste.remoteJUnit.client;
 
-import java.io.IOException;
-import java.net.Socket;
-import java.net.URI;
-
 import org.junit.runner.Description;
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
@@ -19,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.client.internal.InternalRemoteRunner;
 import com.github.ruediste.remoteJUnit.client.internal.Utils;
+import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
 public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
@@ -27,42 +24,48 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
     private Runner delegate;
 
-    public RemoteTestRunner(Class<?> clazz) throws InitializationError {
-        Remote remote = Utils.findAnnotation(clazz, Remote.class);
-        String endpoint = System.getProperty("junit.remote.endpoint");
-        Class<? extends Runner> remoteRunnerClass;
-        if (remote != null) {
-            if (endpoint == null)
-                endpoint = remote.endpoint();
-            remoteRunnerClass = remote.runnerClass();
-        } else {
-            if (endpoint == null)
-                endpoint = "http://localhost:4578/";
-            remoteRunnerClass = BlockJUnit4ClassRunner.class;
-        }
-        log.debug("Trying remote server {} with runner {}", endpoint,
-                remoteRunnerClass.getName());
-        // if (isRemoteUp(endpoint)) {
-        if (true) {
-            delegate = new InternalRemoteRunner(clazz, endpoint,
-                    remoteRunnerClass);
-        } else {
-            delegate = Utils.createRunner(remoteRunnerClass, clazz);
-        }
+    static class RemoteInfo {
+        String endpoint = "http://localhost:4578/";
+
+        Class<? extends Runner> runnerClass = BlockJUnit4ClassRunner.class;
+
+        Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplier = null;
+
     }
 
-    private boolean isRemoteUp(String endPoint) {
-        URI uri = URI.create(endPoint.trim());
-
-        try {
-            Socket s = new Socket(uri.getHost(), uri.getPort());
-            s.close();
-
-            return true;
-        } catch (IOException e) {
+    RemoteInfo calculateRemoteInfo(Class<?> cls) {
+        if (cls == null) {
+            return new RemoteInfo();
         }
 
-        return false;
+        RemoteInfo info = calculateRemoteInfo(cls.getSuperclass());
+        Remote remote = cls.getAnnotation(Remote.class);
+        if (remote != null) {
+            if (!"".equals(remote.endpoint()))
+                info.endpoint = remote.endpoint();
+            if (!Runner.class.equals(remote.runnerClass()))
+                info.runnerClass = remote.runnerClass();
+            if (!ParentClassLoaderSupplier.class.equals(remote
+                    .parentClassloaderSupplier()))
+                info.parentClassloaderSupplier = remote
+                        .parentClassloaderSupplier();
+        }
+        return info;
+
+    }
+
+    public RemoteTestRunner(Class<?> clazz) throws InitializationError {
+        RemoteInfo info = calculateRemoteInfo(clazz);
+
+        {
+            String endpoint = System.getProperty("junit.remote.endpoint");
+            if (endpoint != null)
+                info.endpoint = endpoint;
+        }
+        log.debug("Trying remote server {} with runner {}", info.endpoint,
+                info.runnerClass.getName());
+        delegate = new InternalRemoteRunner(clazz, info.endpoint,
+                info.runnerClass, info.parentClassloaderSupplier);
     }
 
     @Override

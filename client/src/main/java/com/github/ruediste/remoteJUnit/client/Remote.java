@@ -9,6 +9,8 @@ import org.junit.runner.RunWith;
 import org.junit.runner.Runner;
 import org.junit.runners.BlockJUnit4ClassRunner;
 
+import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
+
 /**
  * Provide additional meta data for tests run with the {@link RemoteTestRunner}.
  * 
@@ -25,17 +27,20 @@ import org.junit.runners.BlockJUnit4ClassRunner;
 public @interface Remote {
 
     /**
-     * The endpoint to use for test execution. This should point to an instance
-     * of the RemoteServer, and should not include any path.
-     * 
-     * @return
+     * The endpoint to use for test execution. Default is
+     * 'http://localhost:4578/'
      */
-    String endpoint() default "http://localhost:4578/";
+    String endpoint() default "";
 
     /**
      * The remote runner class. Can be any runner, as long as it's on classpath.
-     * For example, it should be the SpringJUnit4ClassRunner
+     * Default is {@link BlockJUnit4ClassRunner}
      */
-    Class<? extends Runner> runnerClass() default BlockJUnit4ClassRunner.class;
+    Class<? extends Runner> runnerClass() default Runner.class;
+
+    /**
+     * Used on the server to obtain the parent class loader.
+     */
+    Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplier() default ParentClassLoaderSupplier.class;
 
 }

@@ -17,11 +17,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
@@ -38,6 +39,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             .getLogger(ClassLoadingRemoteCodeRunnerClient.class);
 
     private interface RemoteCodeMessage extends Serializable {
+
     }
 
     public static class RequestClassMessage implements RemoteCodeMessage {
@@ -49,6 +51,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             this.name = name;
         }
 
+        @Override
+        public String toString() {
+            return "RequestClassMessage(" + name + ")";
+        }
     }
 
     public static class ServerCodeExited implements RemoteCodeMessage {
@@ -59,10 +65,20 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
 
         private static final long serialVersionUID = 1L;
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
     }
 
     public static class ServerCodeExitReceived implements RemoteCodeMessage {
         private static final long serialVersionUID = 1L;
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
     }
 
     public static class SendClassMessage implements RemoteCodeMessage {
@@ -75,6 +91,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             this.data = data;
         }
 
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
     }
 
     public static class SendJarsMessage implements RemoteCodeMessage {
@@ -85,6 +105,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             this.jars = jars;
         }
 
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
     }
 
     public static class CustomMessageWrapper implements RemoteCodeMessage {
@@ -96,6 +120,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             this.message = message;
         }
 
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
     }
 
     public interface RemoteCodeResponse extends Serializable {
@@ -124,6 +152,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
     public static class GetToClientMessagesRequest implements RemoteCodeRequest {
         private static final long serialVersionUID = 1L;
 
+        @Override
+        public String toString() {
+            return "GetToClientMessagesRequest";
+        }
     }
 
     public static class SendToServerMessagesRequest implements
@@ -136,6 +168,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             this.messages = messages;
         }
 
+        @Override
+        public String toString() {
+            return "SendToServerMessagesRequest(" + messages + ")";
+        }
     }
 
     public interface RemoteCodeEnvironment<TMessage> {
@@ -170,8 +206,18 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             }
 
             @Override
+            protected Class<?> loadClass(String name, boolean resolve)
+                    throws ClassNotFoundException {
+                if (name.startsWith(ClassLoadingRemoteCodeRunnerClient.class
+                        .getName()))
+                    return getClass().getClassLoader().loadClass(name);
+                return super.loadClass(name, resolve);
+            }
+
+            @Override
             protected Class<?> findClass(String name)
                     throws ClassNotFoundException {
+
                 byte[] data;
                 synchronized (classData) {
                     data = classData.get(name);
@@ -186,15 +232,20 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     }
 
                     // wait for class to be returned
+                    long start = System.currentTimeMillis();
                     do {
                         synchronized (classData) {
                             data = classData.get(name);
                             if (data == null)
                                 try {
-                                    classData.wait();
+                                    classData.wait(500);
                                 } catch (InterruptedException e) {
                                     throw new RuntimeException(e);
                                 }
+                        }
+                        if (System.currentTimeMillis() > start + 2000) {
+                            // 2 seconds elapsed, abort
+                            throw new ClassNotFoundException(name);
                         }
                     } while (data == null);
                     log.debug("loaded from client: " + name);
@@ -250,9 +301,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         private final BlockingQueue<TMessage> toServer = new LinkedBlockingQueue<>();
         private final BlockingQueue<RemoteCodeMessage> toClient = new LinkedBlockingQueue<RemoteCodeMessage>();
 
-        private Supplier<ClassLoader> parentClassLoaderSupplier;
+        private ParentClassLoaderSupplier parentClassLoaderSupplier;
 
         private byte[] codeDelegate;
+        transient ExecutorService toServerDeserializer;
 
         public ClassLoadingRemoteCode(
                 Consumer<RemoteCodeEnvironment<TMessage>> codeDelegate) {
@@ -262,9 +314,9 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
         private ClassLoader getParentClassLoader() {
             if (parentClassLoaderSupplier == null)
-                return getClass().getClassLoader();
+                return Thread.currentThread().getContextClassLoader();
             else
-                return parentClassLoaderSupplier.get();
+                return parentClassLoaderSupplier.getParentClassLoader();
         }
 
         Semaphore exitConfirmationReceived = new Semaphore(0);
@@ -272,6 +324,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         @SuppressWarnings("unchecked")
         @Override
         public void run() {
+            toServerDeserializer = Executors.newSingleThreadExecutor();
             try {
                 classLoader = new SessionClassLoader(this,
                         getParentClassLoader());
@@ -294,7 +347,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         public byte[] handle(byte[] requestBa) {
             RemoteCodeRequest request = (RemoteCodeRequest) SerializationHelper
                     .toObject(requestBa, getClass().getClassLoader());
-            log.debug("handling " + request.getClass().getSimpleName());
+            log.debug("handling {}", request);
             try {
                 return SerializationHelper.toByteArray(handle(request));
             } catch (Exception e) {
@@ -315,26 +368,35 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     throw new RuntimeException(e);
                 }
                 toClient.drainTo(messages);
+                log.debug("sending to client: {}", messages);
                 return new ToClientMessagesResponse(messages);
             } else if (request instanceof SendToServerMessagesRequest) {
                 SendToServerMessagesRequest sendToServerMessagesRequest = (SendToServerMessagesRequest) request;
-                List<TMessage> msgs = new ArrayList<>();
                 for (RemoteCodeMessage message : sendToServerMessagesRequest.messages) {
+                    log.debug("handling toServer message " + message);
                     if (message instanceof ServerCodeExitReceived) {
+                        toServerDeserializer.shutdown();
                         exitConfirmationReceived.release();
                     } else if (message instanceof SendClassMessage) {
                         classLoader.addClass((SendClassMessage) message);
                     } else if (message instanceof SendJarsMessage) {
                         classLoader.addJars(((SendJarsMessage) message).jars);
                     } else if (message instanceof CustomMessageWrapper) {
-                        CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
-                        msgs.add((TMessage) SerializationHelper.toObject(
-                                wrapper.message, classLoader));
+                        toServerDeserializer
+                                .execute(() -> {
+                                    CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
+                                    TMessage wrappedMessage = (TMessage) SerializationHelper
+                                            .toObject(wrapper.message,
+                                                    classLoader);
+                                    log.debug(
+                                            "received and deserialized custom message {}",
+                                            wrappedMessage);
+                                    toServer.add(wrappedMessage);
+                                });
                     } else
                         throw new UnsupportedOperationException(
                                 "Unknown message " + message);
                 }
-                toServer.addAll(msgs);
 
                 return new EmptyResponse();
             } else
@@ -343,12 +405,12 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
         }
 
-        public Supplier<ClassLoader> getParentClassLoaderSupplier() {
+        public ParentClassLoaderSupplier getParentClassLoaderSupplier() {
             return parentClassLoaderSupplier;
         }
 
         public void setParentClassLoaderSupplier(
-                Supplier<ClassLoader> parentClassLoaderSupplier) {
+                ParentClassLoaderSupplier parentClassLoaderSupplier) {
             this.parentClassLoaderSupplier = parentClassLoaderSupplier;
         }
 
@@ -410,21 +472,32 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     }
 
-    private Supplier<ClassLoader> parentClassLoaderSupplier;
+    private ParentClassLoaderSupplier parentClassLoaderSupplier;
     private CodeRunnerClient client;
+
+    public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
+
+    BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler) {
+        runCode(code, clientMessageHandler, new ClassMapBuilder());
+    }
 
     @SuppressWarnings("unchecked")
     public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
-            BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler) {
+            BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler,
+            ClassMapBuilder bootstrapClasses) {
         ClassLoadingRemoteCode<TMessage> clCode = new ClassLoadingRemoteCode<>(
                 code);
-        clCode.setParentClassLoaderSupplier(parentClassLoaderSupplier);
+        if (parentClassLoaderSupplier != null) {
+            clCode.setParentClassLoaderSupplier(parentClassLoaderSupplier);
+            bootstrapClasses.addClass(parentClassLoaderSupplier.getClass());
+        }
         if (client == null) {
             client = new CodeRunnerClient();
         }
-        RequestChannel channel = client.startCode(clCode, new ClassMapBuilder()
+        RequestChannel channel = client.startCode(clCode, bootstrapClasses
                 .addClass(ClassLoadingRemoteCodeRunnerClient.class,
-                        SerializationHelper.class));
+                        SerializationHelper.class,
+                        ParentClassLoaderSupplier.class));
 
         MessageChannel<TMessage> msgChannel = new MessageChannel<>();
 
@@ -438,6 +511,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             ToClientMessagesResponse messagesResponse = (ToClientMessagesResponse) channel
                     .sendRequest(new GetToClientMessagesRequest());
             for (RemoteCodeMessage message : messagesResponse.messages) {
+                log.debug("handling toClient message " + message);
                 if (message instanceof CustomMessageWrapper) {
                     clientMessageHandler
                             .accept((TMessage) SerializationHelper
@@ -553,12 +627,12 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         return out.toByteArray();
     }
 
-    public Supplier<ClassLoader> getParentClassLoaderSupplier() {
+    public ParentClassLoaderSupplier getParentClassLoaderSupplier() {
         return parentClassLoaderSupplier;
     }
 
     public void setParentClassLoaderSupplier(
-            Supplier<ClassLoader> parentClassLoaderSupplier) {
+            ParentClassLoaderSupplier parentClassLoaderSupplier) {
         this.parentClassLoaderSupplier = parentClassLoaderSupplier;
     }
 

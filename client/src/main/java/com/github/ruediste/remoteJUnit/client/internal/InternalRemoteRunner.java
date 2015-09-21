@@ -1,6 +1,7 @@
 package com.github.ruediste.remoteJUnit.client.internal;
 
 import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Comparator;
@@ -9,6 +10,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import org.junit.Test;
@@ -32,9 +35,13 @@ import org.slf4j.LoggerFactory;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
+import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
 public class InternalRemoteRunner extends Runner implements Filterable,
         Sortable {
+    private static final Logger log = LoggerFactory
+            .getLogger(InternalRemoteRunner.class);
+
     public interface RemoteJUnitMessage extends Serializable {
 
         <T> T accept(RemoteJUnitMessageVisitor<T> visitor);
@@ -59,6 +66,11 @@ public class InternalRemoteRunner extends Runner implements Filterable,
             return visitor.handle(this);
         }
 
+        @Override
+        public String toString() {
+            // TODO Auto-generated method stub
+            return "NotifierInvokedMessage(" + methodName + "(" + arg + "))";
+        }
     }
 
     public static class RunCompletedMessage implements RemoteJUnitMessage {
@@ -74,6 +86,11 @@ public class InternalRemoteRunner extends Runner implements Filterable,
             return visitor.handle(this);
         }
 
+        @Override
+        public String toString() {
+            // TODO Auto-generated method stub
+            return "RunCompletedMessage(" + failure + ")";
+        }
     }
 
     public static class StoppedByUserMessage implements RemoteJUnitMessage {
@@ -107,72 +124,74 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
     }
 
-    private static final Logger log = LoggerFactory
-            .getLogger(InternalRemoteRunner.class);
-
-    private static class SessionRunNotifier extends RunNotifier {
-        private Consumer<RemoteJUnitMessage> toClientSender;
-
-        SessionRunNotifier(Consumer<RemoteJUnitMessage> toClientSender) {
-            this.toClientSender = toClientSender;
-        }
-
-        private <T> void sendMessage(String methodName, Class<T> argType, T arg) {
-            toClientSender.accept(new NotifierInvokedMessage(methodName,
-                    argType.getName(), arg));
-        }
-
-        @Override
-        public void fireTestRunStarted(Description description) {
-            sendMessage("fireTestRunStarted", Description.class, description);
-            super.fireTestRunStarted(description);
-        }
-
-        @Override
-        public void fireTestRunFinished(Result result) {
-            sendMessage("fireTestRunFinished", Result.class, result);
-            super.fireTestRunFinished(result);
-        }
-
-        @Override
-        public void fireTestStarted(Description description)
-                throws StoppedByUserException {
-            sendMessage("fireTestStarted", Description.class, description);
-            super.fireTestStarted(description);
-        }
-
-        @Override
-        public void fireTestFailure(Failure failure) {
-            sendMessage("fireTestFailure", Failure.class, failure);
-            super.fireTestFailure(failure);
-        }
-
-        @Override
-        public void fireTestAssumptionFailed(Failure failure) {
-            sendMessage("fireTestAssumptionFailed", Failure.class, failure);
-            super.fireTestAssumptionFailed(failure);
-        }
-
-        @Override
-        public void fireTestIgnored(Description description) {
-            sendMessage("fireTestIgnored", Description.class, description);
-            super.fireTestIgnored(description);
-        }
-
-        @Override
-        public void fireTestFinished(Description description) {
-            sendMessage("fireTestFinished", Description.class, description);
-            super.fireTestFinished(description);
-        }
-
-    }
-
     private static class ServerCode implements
             Consumer<RemoteCodeEnvironment<RemoteJUnitMessage>>, Serializable {
         private static final long serialVersionUID = 1L;
+
+        private static class SessionRunNotifier extends RunNotifier {
+            private Consumer<RemoteJUnitMessage> toClientSender;
+
+            SessionRunNotifier(Consumer<RemoteJUnitMessage> toClientSender) {
+                this.toClientSender = toClientSender;
+            }
+
+            private <T> void sendMessage(String methodName, Class<T> argType,
+                    T arg) {
+                log.debug("send notifier invocation: {}({})", methodName, arg);
+                toClientSender.accept(new NotifierInvokedMessage(methodName,
+                        argType.getName(), arg));
+            }
+
+            @Override
+            public void fireTestRunStarted(Description description) {
+                sendMessage("fireTestRunStarted", Description.class,
+                        description);
+                super.fireTestRunStarted(description);
+            }
+
+            @Override
+            public void fireTestRunFinished(Result result) {
+                sendMessage("fireTestRunFinished", Result.class, result);
+                super.fireTestRunFinished(result);
+            }
+
+            @Override
+            public void fireTestStarted(Description description)
+                    throws StoppedByUserException {
+                sendMessage("fireTestStarted", Description.class, description);
+                super.fireTestStarted(description);
+            }
+
+            @Override
+            public void fireTestFailure(Failure failure) {
+                sendMessage("fireTestFailure", Failure.class, failure);
+                super.fireTestFailure(failure);
+            }
+
+            @Override
+            public void fireTestAssumptionFailed(Failure failure) {
+                sendMessage("fireTestAssumptionFailed", Failure.class, failure);
+                super.fireTestAssumptionFailed(failure);
+            }
+
+            @Override
+            public void fireTestIgnored(Description description) {
+                sendMessage("fireTestIgnored", Description.class, description);
+                super.fireTestIgnored(description);
+            }
+
+            @Override
+            public void fireTestFinished(Description description) {
+                sendMessage("fireTestFinished", Description.class, description);
+                super.fireTestFinished(description);
+            }
+
+        }
+
         Class<?> testClass;
         Class<? extends Runner> runnerClass;
         Description description;
+        private volatile boolean completed;
 
         public ServerCode(Class<?> testClass,
                 Class<? extends Runner> runnerClass, Description description) {
@@ -185,12 +204,39 @@ public class InternalRemoteRunner extends Runner implements Filterable,
         @Override
         public void accept(RemoteCodeEnvironment<RemoteJUnitMessage> env) {
             log.debug("starting execution of " + testClass.getName());
-            ClassLoader oldContextClassLoader = Thread.currentThread()
-                    .getContextClassLoader();
-            Thread.currentThread().setContextClassLoader(
-                    getClass().getClassLoader());
+
             try {
 
+                RunNotifier notifier = new SessionRunNotifier(env::sendToClient);
+                // start toServer message handler
+                {
+                    Thread t = new Thread(
+                            () -> {
+                                while (!completed) {
+                                    RemoteJUnitMessage msg;
+                                    try {
+                                        msg = env.getToServerMessages().poll(1,
+                                                TimeUnit.SECONDS);
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
+                                    }
+
+                                    if (msg != null) {
+                                        log.debug("handling toServer message "
+                                                + msg);
+                                        if (msg instanceof StoppedByUserMessage) {
+                                            log.debug("invoking notifier.pleaseStop()");
+                                            notifier.pleaseStop();
+                                        } else
+                                            throw new RuntimeException(
+                                                    "Unknown message " + msg);
+                                    }
+                                }
+                            });
+                    t.setName("toServer message handler");
+                    t.setDaemon(true);
+                    t.start();
+                }
                 final Runner runner = Utils
                         .createRunner(runnerClass, testClass);
 
@@ -231,14 +277,12 @@ public class InternalRemoteRunner extends Runner implements Filterable,
                     }
                 }));
 
-                RunNotifier notifier = new SessionRunNotifier(env::sendToClient);
                 runner.run(notifier);
                 env.sendToClient(new RunCompletedMessage(null));
-            } catch (Exception e) {
-                env.sendToClient(new RunCompletedMessage(e));
+            } catch (Throwable t) {
+                env.sendToClient(new RunCompletedMessage(t));
             } finally {
-                Thread.currentThread().setContextClassLoader(
-                        oldContextClassLoader);
+                completed = true;
                 log.debug("finished execution of " + testClass.getName());
             }
         }
@@ -266,14 +310,21 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
         @Override
         public Boolean handle(RunCompletedMessage runCompletedMessage) {
-            if (runCompletedMessage.failure != null)
-                throw new RuntimeException("Error in remote unit test",
-                        runCompletedMessage.failure);
+            Throwable failure = runCompletedMessage.failure;
+            if (failure != null) {
+                if (failure instanceof RuntimeException)
+                    throw (RuntimeException) failure;
+                if (failure instanceof Error)
+                    throw (Error) failure;
+                throw new RuntimeException("Error in remote unit test", failure);
+            }
             return true;
         }
 
         @Override
         public Boolean handle(NotifierInvokedMessage msg) {
+            log.debug("invoking method " + msg.methodName
+                    + "() on notifier with argument " + msg.arg);
             Class<?> argType;
             try {
                 argType = RunNotifier.class.getClassLoader().loadClass(
@@ -281,8 +332,14 @@ public class InternalRemoteRunner extends Runner implements Filterable,
                 Method method = RunNotifier.class.getMethod(msg.methodName,
                         argType);
                 method.invoke(notifier, msg.arg);
-            } catch (StoppedByUserException e) {
-                toServerSender.accept(new StoppedByUserMessage());
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof StoppedByUserException) {
+                    if (pleaseStopSent.compareAndSet(false, true)) {
+                        log.debug("sending StoppedByUserMessage");
+                        toServerSender.accept(new StoppedByUserMessage());
+                    }
+                } else
+                    throw new RuntimeException(e.getCause());
             } catch (Exception e) {
                 log.warn("Error while invoking RunNotifier method", e);
             }
@@ -297,12 +354,19 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
     private String endpoint;
 
-    public InternalRemoteRunner(Class<?> testClass, String endpoint,
-            Class<? extends Runner> remoteRunnerClass)
+    private AtomicBoolean pleaseStopSent = new AtomicBoolean(false);
+    private Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass;
+
+    public InternalRemoteRunner(
+            Class<?> testClass,
+            String endpoint,
+            Class<? extends Runner> remoteRunnerClass,
+            Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass)
             throws InitializationError {
         this.testClass = testClass;
         this.endpoint = endpoint;
         this.remoteRunnerClass = remoteRunnerClass;
+        this.parentClassloaderSupplierClass = parentClassloaderSupplierClass;
         TestClass tc = new TestClass(testClass);
 
         description = Description.createTestDescription(testClass,
@@ -348,18 +412,29 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
     @Override
     public void run(RunNotifier notifier) {
-        try {
-
-            ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
-            client.setRunnerClient(new CodeRunnerClient(endpoint));
-            client.runCode(new ServerCode(testClass, remoteRunnerClass,
-                    description), (msg, sender) -> {
-                msg.accept(new ToClientMessageHandler(sender, notifier));
-            });
-        } catch (Exception e) {
-            notifier.fireTestFailure(new Failure(description, e));
-            return;
+        log.debug("starting remote execution of " + testClass);
+        // try {
+        ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
+        client.setRunnerClient(new CodeRunnerClient(endpoint));
+        if (parentClassloaderSupplierClass != null) {
+            ParentClassLoaderSupplier parentClassLoaderSupplier;
+            try {
+                parentClassLoaderSupplier = parentClassloaderSupplierClass
+                        .newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            client.setParentClassLoaderSupplier(parentClassLoaderSupplier);
         }
+        client.runCode(
+                new ServerCode(testClass, remoteRunnerClass, description), (
+                        msg, sender) -> {
+                    log.debug("handling toClient message " + msg);
+                    msg.accept(new ToClientMessageHandler(sender, notifier));
+                });
+        // } catch (Exception e) {
+        // notifier.fireTestFailure(new Failure(description, e));
+        // }
 
     }
 

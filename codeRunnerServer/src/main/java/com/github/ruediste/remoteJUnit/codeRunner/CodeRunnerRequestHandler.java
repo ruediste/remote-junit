@@ -33,8 +33,11 @@ public class CodeRunnerRequestHandler {
 
     private Executor executor;
 
+    private ClassLoader parentClassLoader;
+
     public CodeRunnerRequestHandler() {
-        this(Executors.newCachedThreadPool()::execute);
+        this(CodeRunnerRequestHandler.class.getClassLoader(), Executors
+                .newCachedThreadPool()::execute);
     }
 
     /**
@@ -43,7 +46,9 @@ public class CodeRunnerRequestHandler {
      *            MUST return immediately, starting the supplied runnable in a
      *            separate thread.
      */
-    public CodeRunnerRequestHandler(Executor executor) {
+    public CodeRunnerRequestHandler(ClassLoader parentClassLoader,
+            Executor executor) {
+        this.parentClassLoader = parentClassLoader;
         this.executor = executor;
     }
 
@@ -79,6 +84,12 @@ public class CodeRunnerRequestHandler {
             this.classData = classData;
         }
 
+        private CodeBootstrapClassLoader(ClassLoader parent,
+                Map<String, byte[]> classData) {
+            super(parent);
+            this.classData = classData;
+        }
+
         @Override
         public InputStream getResourceAsStream(String name) {
             if (name.endsWith(".class")) {
@@ -99,8 +110,9 @@ public class CodeRunnerRequestHandler {
                 return defineClass(name, data, 0, data.length);
             } else {
                 if (DeserializationHelper.class.getName().equals(name)) {
-                    try (InputStream is = getResourceAsStream(name.replace('.',
-                            '/') + ".class")) {
+                    try (InputStream is = DeserializationHelper.class
+                            .getClassLoader().getResourceAsStream(
+                                    name.replace('.', '/') + ".class")) {
                         int read;
                         byte[] buffer = new byte[128];
                         ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -153,8 +165,13 @@ public class CodeRunnerRequestHandler {
         } else if (req instanceof RunCodeRequest) {
             RunCodeRequest runRequest = (RunCodeRequest) req;
             long codeId = nextCodeId.getAndIncrement();
-            CodeBootstrapClassLoader cl = new CodeBootstrapClassLoader(
-                    runRequest.bootstrapClasses);
+
+            CodeBootstrapClassLoader cl;
+            if (parentClassLoader == null)
+                cl = new CodeBootstrapClassLoader(runRequest.bootstrapClasses);
+            else
+                cl = new CodeBootstrapClassLoader(parentClassLoader,
+                        runRequest.bootstrapClasses);
 
             RemoteCode remoteCode;
             try {
