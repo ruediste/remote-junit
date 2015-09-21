@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
 public class InternalRemoteRunner extends Runner
@@ -68,7 +69,6 @@ public class InternalRemoteRunner extends Runner
 
         @Override
         public String toString() {
-            // TODO Auto-generated method stub
             return "NotifierInvokedMessage(" + methodName + "(" + arg + "))";
         }
     }
@@ -88,7 +88,6 @@ public class InternalRemoteRunner extends Runner
 
         @Override
         public String toString() {
-            // TODO Auto-generated method stub
             return "RunCompletedMessage(" + failure + ")";
         }
     }
@@ -323,15 +322,16 @@ public class InternalRemoteRunner extends Runner
 
         @Override
         public Boolean handle(NotifierInvokedMessage msg) {
+            Object arg = msg.arg;
             log.debug("invoking method " + msg.methodName
-                    + "() on notifier with argument " + msg.arg);
+                    + "() on notifier with argument " + arg);
             Class<?> argType;
             try {
                 argType = RunNotifier.class.getClassLoader()
                         .loadClass(msg.argTypeClass);
                 Method method = RunNotifier.class.getMethod(msg.methodName,
                         argType);
-                method.invoke(notifier, msg.arg);
+                method.invoke(notifier, arg);
             } catch (InvocationTargetException e) {
                 if (e.getCause() instanceof StoppedByUserException) {
                     if (pleaseStopSent.compareAndSet(false, true)) {
@@ -348,6 +348,7 @@ public class InternalRemoteRunner extends Runner
     }
 
     private Description description;
+
     private Map<Description, String> methodNames = new HashMap<Description, String>();
     private final Class<?> testClass;
     private Class<? extends Runner> remoteRunnerClass;
@@ -367,8 +368,7 @@ public class InternalRemoteRunner extends Runner
         this.parentClassloaderSupplierClass = parentClassloaderSupplierClass;
         TestClass tc = new TestClass(testClass);
 
-        description = Description.createTestDescription(testClass, tc.getName(),
-                tc.getAnnotations());
+        description = Description.createSuiteDescription(testClass);
 
         for (FrameworkMethod method : tc.getAnnotatedMethods(Test.class)) {
             String methodName = method.getName();
@@ -410,29 +410,33 @@ public class InternalRemoteRunner extends Runner
 
     @Override
     public void run(RunNotifier notifier) {
-        log.debug("starting remote execution of " + testClass);
-        // try {
-        ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
-        client.setRunnerClient(new CodeRunnerClient(endpoint));
-        if (parentClassloaderSupplierClass != null) {
-            ParentClassLoaderSupplier parentClassLoaderSupplier;
-            try {
-                parentClassLoaderSupplier = parentClassloaderSupplierClass
-                        .newInstance();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+        try {
+            log.debug("starting remote execution of " + testClass);
+            // try {
+            ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
+            client.setRunnerClient(new CodeRunnerClient(endpoint));
+            if (parentClassloaderSupplierClass != null) {
+                ParentClassLoaderSupplier parentClassLoaderSupplier;
+                try {
+                    parentClassLoaderSupplier = parentClassloaderSupplierClass
+                            .newInstance();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                client.setParentClassLoaderSupplier(parentClassLoaderSupplier);
             }
-            client.setParentClassLoaderSupplier(parentClassLoaderSupplier);
+            client.runCode(
+                    new ServerCode(testClass, remoteRunnerClass, description),
+                    (msg, sender) -> {
+                        log.debug("handling toClient message " + msg);
+                        msg.accept(
+                                new ToClientMessageHandler(sender, notifier));
+                    } ,
+                    new ClassMapBuilder().addClass(InternalRemoteRunner.class,
+                            RunCompletedMessage.class));
+        } catch (Exception e) {
+            notifier.fireTestFailure(new Failure(description, e));
         }
-        client.runCode(
-                new ServerCode(testClass, remoteRunnerClass, description),
-                (msg, sender) -> {
-                    log.debug("handling toClient message " + msg);
-                    msg.accept(new ToClientMessageHandler(sender, notifier));
-                });
-        // } catch (Exception e) {
-        // notifier.fireTestFailure(new Failure(description, e));
-        // }
 
     }
 

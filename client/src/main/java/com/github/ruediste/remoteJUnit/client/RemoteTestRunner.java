@@ -8,7 +8,7 @@ import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runner.manipulation.Sortable;
 import org.junit.runner.manipulation.Sorter;
 import org.junit.runner.notification.RunNotifier;
-import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.runners.JUnit4;
 import org.junit.runners.model.InitializationError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +27,7 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
     static class RemoteInfo {
         String endpoint = "http://localhost:4578/";
 
-        Class<? extends Runner> runnerClass = BlockJUnit4ClassRunner.class;
+        Class<? extends Runner> runnerClass = JUnit4.class;
 
         Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplier = null;
 

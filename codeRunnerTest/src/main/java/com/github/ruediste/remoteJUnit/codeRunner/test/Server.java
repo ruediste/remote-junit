@@ -13,15 +13,15 @@ public class Server {
     public static void main(String... args) {
         CodeRunnerStandaloneServer server = new CodeRunnerStandaloneServer();
         ExecutorService pool = Executors.newCachedThreadPool();
-        server.setHandler(new CodeRunnerRequestHandler(
-                Server.class.getClassLoader(), r -> pool.execute(() -> {
-                    try {
-                        runningOnServer.set(true);
-                        r.run();
-                    } finally {
-                        runningOnServer.remove();
-                    }
-                })));
+        server.setHandler(new CodeRunnerRequestHandler(Server.class
+                .getClassLoader(), r -> pool.execute(() -> {
+            try {
+                runningOnServer.set(true);
+                r.run();
+            } finally {
+                runningOnServer.remove();
+            }
+        })));
         server.startAndWait();
     }
 }
