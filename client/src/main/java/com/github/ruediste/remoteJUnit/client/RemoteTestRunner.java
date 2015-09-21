@@ -45,8 +45,8 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
                 info.endpoint = remote.endpoint();
             if (!Runner.class.equals(remote.runnerClass()))
                 info.runnerClass = remote.runnerClass();
-            if (!ParentClassLoaderSupplier.class.equals(remote
-                    .parentClassloaderSupplier()))
+            if (!ParentClassLoaderSupplier.class
+                    .equals(remote.parentClassloaderSupplier()))
                 info.parentClassloaderSupplier = remote
                         .parentClassloaderSupplier();
         }

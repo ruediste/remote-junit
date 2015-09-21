@@ -31,8 +31,8 @@ public class RemoteTestRunnerTest {
         assertEquals(BlockJUnit4ClassRunner.class, info.runnerClass);
     }
 
-    private abstract static class TestParentClassLoaderSupplier implements
-            ParentClassLoaderSupplier {
+    private abstract static class TestParentClassLoaderSupplier
+            implements ParentClassLoaderSupplier {
     }
 
     @Remote(endpoint = "foo", parentClassloaderSupplier = TestParentClassLoaderSupplier.class, runnerClass = ParentRunner.class)

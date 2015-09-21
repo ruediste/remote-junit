@@ -36,11 +36,11 @@ public @interface Remote {
      * The remote runner class. Can be any runner, as long as it's on classpath.
      * Default is {@link BlockJUnit4ClassRunner}
      */
-    Class<? extends Runner> runnerClass() default Runner.class;
+    Class<? extends Runner>runnerClass() default Runner.class;
 
     /**
      * Used on the server to obtain the parent class loader.
      */
-    Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplier() default ParentClassLoaderSupplier.class;
+    Class<? extends ParentClassLoaderSupplier>parentClassloaderSupplier() default ParentClassLoaderSupplier.class;
 
 }

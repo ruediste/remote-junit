@@ -47,14 +47,15 @@ public class Utils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Runner createRunner(String runnerClassName, Class<?> testClass) {
+    public static Runner createRunner(String runnerClassName,
+            Class<?> testClass) {
         try {
             return createRunner(
                     (Class<? extends Runner>) Class.forName(runnerClassName),
                     testClass);
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Unable to create instance of "
-                    + runnerClassName, e);
+            throw new RuntimeException(
+                    "Unable to create instance of " + runnerClassName, e);
         }
     }
 
@@ -68,12 +69,12 @@ public class Utils {
             try {
                 return runnerClass.newInstance();
             } catch (Exception e1) {
-                throw new RuntimeException("Unable to create instanceof "
-                        + runnerClass, e);
+                throw new RuntimeException(
+                        "Unable to create instanceof " + runnerClass, e);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Unable to create instanceof "
-                    + runnerClass, e);
+            throw new RuntimeException(
+                    "Unable to create instanceof " + runnerClass, e);
         }
     }
 

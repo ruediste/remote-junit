@@ -9,7 +9,7 @@ import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
 import java.util.function.Function;
 
-class SerializationHelper {
+public class SerializationHelper {
 
     /**
      * Helper class loaded with the {@link CodeBootstrapClassLoader}, causing
@@ -58,8 +58,8 @@ class SerializationHelper {
             return new DeserializationHelper().apply(bytes);
         }
         try {
-            Constructor<?> cst = new HelperClassLoader(cl).loadClass(
-                    DeserializationHelper.class.getName())
+            Constructor<?> cst = new HelperClassLoader(cl)
+                    .loadClass(DeserializationHelper.class.getName())
                     .getDeclaredConstructor();
             cst.setAccessible(true);
             @SuppressWarnings("unchecked")

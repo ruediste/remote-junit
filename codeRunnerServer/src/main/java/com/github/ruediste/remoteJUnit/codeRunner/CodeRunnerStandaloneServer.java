@@ -50,8 +50,8 @@ public class CodeRunnerStandaloneServer extends NanoHTTPD {
 
         try {
 
-            CodeRunnerCommon.Response resp = getHandler().handle(
-                    session.getInputStream());
+            CodeRunnerCommon.Response resp = getHandler()
+                    .handle(session.getInputStream());
 
             byte[] ba = CodeRunnerRequestHandler.toByteArray(resp);
             return new Response(Status.OK, "application/octet-stream",

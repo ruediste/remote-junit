@@ -36,8 +36,8 @@ public class CodeRunnerRequestHandler {
     private ClassLoader parentClassLoader;
 
     public CodeRunnerRequestHandler() {
-        this(CodeRunnerRequestHandler.class.getClassLoader(), Executors
-                .newCachedThreadPool()::execute);
+        this(CodeRunnerRequestHandler.class.getClassLoader(),
+                Executors.newCachedThreadPool()::execute);
     }
 
     /**
@@ -78,6 +78,7 @@ public class CodeRunnerRequestHandler {
         static {
             registerAsParallelCapable();
         }
+
         private Map<String, byte[]> classData;
 
         private CodeBootstrapClassLoader(Map<String, byte[]> classData) {
@@ -93,8 +94,9 @@ public class CodeRunnerRequestHandler {
         @Override
         public InputStream getResourceAsStream(String name) {
             if (name.endsWith(".class")) {
-                byte[] data = classData.get(name.substring(0,
-                        name.length() - ".class".length()).replace('/', '.'));
+                byte[] data = classData.get(
+                        name.substring(0, name.length() - ".class".length())
+                                .replace('/', '.'));
                 if (data != null)
                     return new ByteArrayInputStream(data);
             }
@@ -134,8 +136,8 @@ public class CodeRunnerRequestHandler {
      * Helper class loaded with the {@link CodeBootstrapClassLoader}, causing
      * deserialization to use that class loader too.
      */
-    private static class DeserializationHelper implements
-            Function<byte[], Object> {
+    private static class DeserializationHelper
+            implements Function<byte[], Object> {
         @SuppressWarnings("unused")
         public DeserializationHelper() {
         }
@@ -151,7 +153,8 @@ public class CodeRunnerRequestHandler {
         }
     }
 
-    public CodeRunnerCommon.Response handleRequest(CodeRunnerCommon.Request req) {
+    public CodeRunnerCommon.Response handleRequest(
+            CodeRunnerCommon.Request req) {
         log.debug("Handling " + req.getClass().getSimpleName());
         if (req instanceof CodeRunnerCommon.CustomRequest) {
             CustomRequest customRequest = (CustomRequest) req;
@@ -175,8 +178,8 @@ public class CodeRunnerRequestHandler {
 
             RemoteCode remoteCode;
             try {
-                Class<?> cls = cl.findClass(DeserializationHelper.class
-                        .getName());
+                Class<?> cls = cl
+                        .findClass(DeserializationHelper.class.getName());
                 Constructor<?> constructor = cls.getDeclaredConstructor();
                 constructor.setAccessible(true);
                 @SuppressWarnings("unchecked")
@@ -199,7 +202,7 @@ public class CodeRunnerRequestHandler {
             log.debug("sending codeStartedResponse. CodeId: " + codeId);
             return new CodeRunnerCommon.CodeStartedResponse(codeId);
         } else
-            return new CodeRunnerCommon.FailureResponse(new RuntimeException(
-                    "Unknonw request " + req));
+            return new CodeRunnerCommon.FailureResponse(
+                    new RuntimeException("Unknonw request " + req));
     }
 }

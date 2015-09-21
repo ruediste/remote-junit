@@ -52,8 +52,8 @@ public class ServerTest {
 
     }
 
-    private static class IsServerFunction implements
-            Function<TestCode, Boolean>, Serializable {
+    private static class IsServerFunction
+            implements Function<TestCode, Boolean>, Serializable {
 
         private static final long serialVersionUID = 1L;
 
@@ -67,10 +67,9 @@ public class ServerTest {
     @Test
     public void testSimpleCode() {
         CodeRunnerClient client = new CodeRunnerClient();
-        RequestChannel channel = client.startCode(
-                new TestCode(),
-                new ClassMapBuilder().addClass(TestCode.class).addClass(
-                        IsServerFunction.class));
+        RequestChannel channel = client.startCode(new TestCode(),
+                new ClassMapBuilder().addClass(TestCode.class)
+                        .addClass(IsServerFunction.class));
         assertEquals(true, channel.sendRequest(new IsServerFunction()));
     }
 
@@ -82,12 +81,12 @@ public class ServerTest {
     @Test
     public void testInnerClasses() {
         ClassMapBuilder b = new ClassMapBuilder().addClass(A.class);
-        assertTrue(b.map
-                .containsKey(com.github.ruediste.remoteJUnit.codeRunner.test.ServerTest.A.AB.class
+        assertTrue(b.map.containsKey(
+                com.github.ruediste.remoteJUnit.codeRunner.test.ServerTest.A.AB.class
                         .getName()));
         b = new ClassMapBuilder().addClass(ServerTest.class);
-        assertTrue(b.map
-                .containsKey(com.github.ruediste.remoteJUnit.codeRunner.test.ServerTest.A.AB.class
+        assertTrue(b.map.containsKey(
+                com.github.ruediste.remoteJUnit.codeRunner.test.ServerTest.A.AB.class
                         .getName()));
     }
 }

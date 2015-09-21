@@ -149,7 +149,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
     public interface RemoteCodeRequest extends Serializable {
     }
 
-    public static class GetToClientMessagesRequest implements RemoteCodeRequest {
+    public static class GetToClientMessagesRequest
+            implements RemoteCodeRequest {
         private static final long serialVersionUID = 1L;
 
         @Override
@@ -158,8 +159,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
     }
 
-    public static class SendToServerMessagesRequest implements
-            RemoteCodeRequest {
+    public static class SendToServerMessagesRequest
+            implements RemoteCodeRequest {
         private static final long serialVersionUID = 1L;
 
         public List<RemoteCodeMessage> messages = new ArrayList<>();
@@ -192,9 +193,11 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         private static class SessionClassLoader extends ClassLoader {
             private static final Logger log = LoggerFactory
                     .getLogger(SessionClassLoader.class);
+
             static {
                 registerAsParallelCapable();
             }
+
             private ClassLoadingRemoteCode<?> code;
 
             Map<String, byte[]> classData = new HashMap<String, byte[]>();
@@ -208,8 +211,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             @Override
             protected Class<?> loadClass(String name, boolean resolve)
                     throws ClassNotFoundException {
-                if (name.startsWith(ClassLoadingRemoteCodeRunnerClient.class
-                        .getName()))
+                if (name.startsWith(
+                        ClassLoadingRemoteCodeRunnerClient.class.getName()))
                     return getClass().getClassLoader().loadClass(name);
                 return super.loadClass(name, resolve);
             }
@@ -272,8 +275,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                         while ((nextJarEntry = in.getNextJarEntry()) != null) {
                             String name = nextJarEntry.getName();
                             if (name.endsWith(".class")) {
-                                String className = name.substring(0,
-                                        name.length() - ".class".length())
+                                String className = name
+                                        .substring(0,
+                                                name.length()
+                                                        - ".class".length())
                                         .replace('/', '.');
                                 classes.put(className, toByteArray(in));
                             }
@@ -382,17 +387,15 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     } else if (message instanceof SendJarsMessage) {
                         classLoader.addJars(((SendJarsMessage) message).jars);
                     } else if (message instanceof CustomMessageWrapper) {
-                        toServerDeserializer
-                                .execute(() -> {
-                                    CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
-                                    TMessage wrappedMessage = (TMessage) SerializationHelper
-                                            .toObject(wrapper.message,
-                                                    classLoader);
-                                    log.debug(
-                                            "received and deserialized custom message {}",
-                                            wrappedMessage);
-                                    toServer.add(wrappedMessage);
-                                });
+                        toServerDeserializer.execute(() -> {
+                            CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
+                            TMessage wrappedMessage = (TMessage) SerializationHelper
+                                    .toObject(wrapper.message, classLoader);
+                            log.debug(
+                                    "received and deserialized custom message {}",
+                                    wrappedMessage);
+                            toServer.add(wrappedMessage);
+                        });
                     } else
                         throw new UnsupportedOperationException(
                                 "Unknown message " + message);
@@ -400,8 +403,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
                 return new EmptyResponse();
             } else
-                throw new UnsupportedOperationException(request.getClass()
-                        .getName());
+                throw new UnsupportedOperationException(
+                        request.getClass().getName());
 
         }
 
@@ -421,8 +424,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
         @Override
         public void sendToClient(TMessage msg) {
-            toClient.add(new CustomMessageWrapper(SerializationHelper
-                    .toByteArray(msg)));
+            toClient.add(new CustomMessageWrapper(
+                    SerializationHelper.toByteArray(msg)));
         }
     }
 
@@ -443,8 +446,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     List<RemoteCodeMessage> messages = new ArrayList<>();
                     messages.add(toServer.take());
                     toServer.drainTo(messages);
-                    channel.sendRequest(new SendToServerMessagesRequest(
-                            messages));
+                    channel.sendRequest(
+                            new SendToServerMessagesRequest(messages));
                     // quit after the exit confirmation has been sent
                     if (messages.stream().anyMatch(
                             m -> m instanceof ServerCodeExitReceived)) {
@@ -466,8 +469,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
 
         public void sendMessage(TMessage msg) {
-            toServer.add(new CustomMessageWrapper(SerializationHelper
-                    .toByteArray(msg)));
+            toServer.add(new CustomMessageWrapper(
+                    SerializationHelper.toByteArray(msg)));
         }
 
     }
@@ -494,8 +497,9 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         if (client == null) {
             client = new CodeRunnerClient();
         }
-        RequestChannel channel = client.startCode(clCode, bootstrapClasses
-                .addClass(ClassLoadingRemoteCodeRunnerClient.class,
+        RequestChannel channel = client.startCode(clCode,
+                bootstrapClasses.addClass(
+                        ClassLoadingRemoteCodeRunnerClient.class,
                         SerializationHelper.class,
                         ParentClassLoaderSupplier.class));
 
@@ -513,10 +517,10 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             for (RemoteCodeMessage message : messagesResponse.messages) {
                 log.debug("handling toClient message " + message);
                 if (message instanceof CustomMessageWrapper) {
-                    clientMessageHandler
-                            .accept((TMessage) SerializationHelper
-                                    .toObject(((CustomMessageWrapper) message).message),
-                                    msg -> msgChannel.sendMessage(msg));
+                    clientMessageHandler.accept(
+                            (TMessage) SerializationHelper.toObject(
+                                    ((CustomMessageWrapper) message).message),
+                            msg -> msgChannel.sendMessage(msg));
                 } else if (message instanceof ServerCodeExited) {
                     Throwable exception = ((ServerCodeExited) message).exception;
                     msgChannel.toServer.add(new ServerCodeExitReceived());
@@ -552,9 +556,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                             Enumeration<JarEntry> entries = jarFile.entries();
                             while (entries.hasMoreElements()) {
                                 JarEntry entry = entries.nextElement();
-                                if (entry.isDirectory()
-                                        || entry.getName().equals(
-                                                JarFile.MANIFEST_NAME)) {
+                                if (entry.isDirectory() || entry.getName()
+                                        .equals(JarFile.MANIFEST_NAME)) {
                                     continue;
                                 }
                                 List<File> list = jarMap.get(entry.getName());
@@ -598,8 +601,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             msgChannel.toServer.add(new SendClassMessage(name, new byte[] {}));
         } else {
             try (InputStream ins = in) {
-                msgChannel.toServer.add(new SendClassMessage(name,
-                        toByteArray(in)));
+                msgChannel.toServer
+                        .add(new SendClassMessage(name, toByteArray(in)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

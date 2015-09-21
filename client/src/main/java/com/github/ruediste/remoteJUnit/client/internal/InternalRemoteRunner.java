@@ -37,8 +37,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerCl
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
-public class InternalRemoteRunner extends Runner implements Filterable,
-        Sortable {
+public class InternalRemoteRunner extends Runner
+        implements Filterable, Sortable {
     private static final Logger log = LoggerFactory
             .getLogger(InternalRemoteRunner.class);
 
@@ -207,38 +207,37 @@ public class InternalRemoteRunner extends Runner implements Filterable,
 
             try {
 
-                RunNotifier notifier = new SessionRunNotifier(env::sendToClient);
+                RunNotifier notifier = new SessionRunNotifier(
+                        env::sendToClient);
                 // start toServer message handler
                 {
-                    Thread t = new Thread(
-                            () -> {
-                                while (!completed) {
-                                    RemoteJUnitMessage msg;
-                                    try {
-                                        msg = env.getToServerMessages().poll(1,
-                                                TimeUnit.SECONDS);
-                                    } catch (Exception e) {
-                                        throw new RuntimeException(e);
-                                    }
+                    Thread t = new Thread(() -> {
+                        while (!completed) {
+                            RemoteJUnitMessage msg;
+                            try {
+                                msg = env.getToServerMessages().poll(1,
+                                        TimeUnit.SECONDS);
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
 
-                                    if (msg != null) {
-                                        log.debug("handling toServer message "
-                                                + msg);
-                                        if (msg instanceof StoppedByUserMessage) {
-                                            log.debug("invoking notifier.pleaseStop()");
-                                            notifier.pleaseStop();
-                                        } else
-                                            throw new RuntimeException(
-                                                    "Unknown message " + msg);
-                                    }
-                                }
-                            });
+                            if (msg != null) {
+                                log.debug("handling toServer message " + msg);
+                                if (msg instanceof StoppedByUserMessage) {
+                                    log.debug("invoking notifier.pleaseStop()");
+                                    notifier.pleaseStop();
+                                } else
+                                    throw new RuntimeException(
+                                            "Unknown message " + msg);
+                            }
+                        }
+                    });
                     t.setName("toServer message handler");
                     t.setDaemon(true);
                     t.start();
                 }
-                final Runner runner = Utils
-                        .createRunner(runnerClass, testClass);
+                final Runner runner = Utils.createRunner(runnerClass,
+                        testClass);
 
                 HashSet<Description> allDescriptions = new HashSet<>();
                 fillDescriptions(description, allDescriptions);
@@ -290,14 +289,14 @@ public class InternalRemoteRunner extends Runner implements Filterable,
         private void fillDescriptions(Description description,
                 HashSet<Description> allDescriptions) {
             if (allDescriptions.add(description)) {
-                description.getChildren().forEach(
-                        d -> fillDescriptions(d, allDescriptions));
+                description.getChildren()
+                        .forEach(d -> fillDescriptions(d, allDescriptions));
             }
         }
     }
 
-    private final class ToClientMessageHandler extends
-            RemoteJUnitMessageVisitor<Boolean> {
+    private final class ToClientMessageHandler
+            extends RemoteJUnitMessageVisitor<Boolean> {
         private RunNotifier notifier;
         private Consumer<RemoteJUnitMessage> toServerSender;
 
@@ -316,7 +315,8 @@ public class InternalRemoteRunner extends Runner implements Filterable,
                     throw (RuntimeException) failure;
                 if (failure instanceof Error)
                     throw (Error) failure;
-                throw new RuntimeException("Error in remote unit test", failure);
+                throw new RuntimeException("Error in remote unit test",
+                        failure);
             }
             return true;
         }
@@ -327,8 +327,8 @@ public class InternalRemoteRunner extends Runner implements Filterable,
                     + "() on notifier with argument " + msg.arg);
             Class<?> argType;
             try {
-                argType = RunNotifier.class.getClassLoader().loadClass(
-                        msg.argTypeClass);
+                argType = RunNotifier.class.getClassLoader()
+                        .loadClass(msg.argTypeClass);
                 Method method = RunNotifier.class.getMethod(msg.methodName,
                         argType);
                 method.invoke(notifier, msg.arg);
@@ -357,20 +357,18 @@ public class InternalRemoteRunner extends Runner implements Filterable,
     private AtomicBoolean pleaseStopSent = new AtomicBoolean(false);
     private Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass;
 
-    public InternalRemoteRunner(
-            Class<?> testClass,
-            String endpoint,
+    public InternalRemoteRunner(Class<?> testClass, String endpoint,
             Class<? extends Runner> remoteRunnerClass,
             Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass)
-            throws InitializationError {
+                    throws InitializationError {
         this.testClass = testClass;
         this.endpoint = endpoint;
         this.remoteRunnerClass = remoteRunnerClass;
         this.parentClassloaderSupplierClass = parentClassloaderSupplierClass;
         TestClass tc = new TestClass(testClass);
 
-        description = Description.createTestDescription(testClass,
-                tc.getName(), tc.getAnnotations());
+        description = Description.createTestDescription(testClass, tc.getName(),
+                tc.getAnnotations());
 
         for (FrameworkMethod method : tc.getAnnotatedMethods(Test.class)) {
             String methodName = method.getName();
@@ -427,8 +425,8 @@ public class InternalRemoteRunner extends Runner implements Filterable,
             client.setParentClassLoaderSupplier(parentClassLoaderSupplier);
         }
         client.runCode(
-                new ServerCode(testClass, remoteRunnerClass, description), (
-                        msg, sender) -> {
+                new ServerCode(testClass, remoteRunnerClass, description),
+                (msg, sender) -> {
                     log.debug("handling toClient message " + msg);
                     msg.accept(new ToClientMessageHandler(sender, notifier));
                 });

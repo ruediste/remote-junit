@@ -11,16 +11,16 @@ import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerCl
 
 public class ClassLoadingRemoteCodeTest {
 
-    private final static class ServerCode implements
-            Consumer<RemoteCodeEnvironment<String>>, Serializable {
+    private final static class ServerCode
+            implements Consumer<RemoteCodeEnvironment<String>>, Serializable {
         private static final long serialVersionUID = 1L;
 
         @Override
         public void accept(RemoteCodeEnvironment<String> env) {
             env.sendToClient("hello");
             try {
-                assertEquals("helloFromClient", env.getToServerMessages()
-                        .take());
+                assertEquals("helloFromClient",
+                        env.getToServerMessages().take());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

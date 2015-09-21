@@ -42,17 +42,18 @@ public class CodeRunnerClient {
         private long runId;
         private Function<byte[], byte[]> requestSender;
 
-        public RequestChannel(long runId, Function<byte[], byte[]> requestSender) {
+        public RequestChannel(long runId,
+                Function<byte[], byte[]> requestSender) {
             this.runId = runId;
             this.requestSender = requestSender;
         }
 
         public Object sendRequest(Object request) {
             log.debug("sending custom request " + request.getClass().getName());
-            CodeRunnerCommon.CustomResponse resp = (CustomResponse) toResponse(requestSender
-                    .apply(SerializationHelper
-                            .toByteArray(new CodeRunnerCommon.CustomRequest(
-                                    runId, SerializationHelper
+            CodeRunnerCommon.CustomResponse resp = (CustomResponse) toResponse(
+                    requestSender.apply(SerializationHelper.toByteArray(
+                            new CodeRunnerCommon.CustomRequest(runId,
+                                    SerializationHelper
                                             .toByteArray(request)))));
             return SerializationHelper.toObject(resp.payload);
         }
@@ -81,15 +82,15 @@ public class CodeRunnerClient {
             try (InputStream in = cls.getClassLoader().getResourceAsStream(
                     cls.getName().replace('.', '/') + ".class")) {
                 if (in == null)
-                    throw new RuntimeException("Cannot read .class file of "
-                            + cls.getName());
+                    throw new RuntimeException(
+                            "Cannot read .class file of " + cls.getName());
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 transfer(in, out);
                 out.close();
                 map.put(cls.getName(), out.toByteArray());
             } catch (IOException e) {
-                throw new RuntimeException("Error while reading "
-                        + cls.getName(), e);
+                throw new RuntimeException(
+                        "Error while reading " + cls.getName(), e);
             }
             return true;
         }
@@ -112,8 +113,8 @@ public class CodeRunnerClient {
     public RequestChannel startCode(CodeRunnerCommon.RemoteCode remoteCode,
             ClassMapBuilder bootstrapClasses) {
         log.debug("starting " + remoteCode.getClass().getName());
-        CodeRunnerCommon.CodeStartedResponse response = (CodeStartedResponse) toResponse(requestSender
-                .apply(SerializationHelper
+        CodeRunnerCommon.CodeStartedResponse response = (CodeStartedResponse) toResponse(
+                requestSender.apply(SerializationHelper
                         .toByteArray(new CodeRunnerCommon.RunCodeRequest(
                                 SerializationHelper.toByteArray(remoteCode),
                                 bootstrapClasses.map))));
@@ -169,7 +170,8 @@ public class CodeRunnerClient {
                 }
 
             } catch (ConnectException e) {
-                throw new RuntimeException("Error connection to " + endpoint, e);
+                throw new RuntimeException("Error connection to " + endpoint,
+                        e);
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
