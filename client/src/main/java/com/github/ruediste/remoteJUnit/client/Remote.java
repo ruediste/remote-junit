@@ -14,12 +14,16 @@ import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 /**
  * Provide additional meta data for tests run with the {@link RemoteTestRunner}.
  * 
+ * <p>
  * Use this on either a class itself or any of it's superclasses.
  * 
+ * <p>
  * The annotation will only be picked up if the class is also {@link RunWith}(
  * {@link RemoteTestRunner}.class)
  * 
- *
+ * <p>
+ * If a subclass is annotated, all non-default elements of this annotation will
+ * override elements specified on the parent class.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

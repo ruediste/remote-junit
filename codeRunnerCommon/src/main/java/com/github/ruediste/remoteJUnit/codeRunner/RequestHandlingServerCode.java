@@ -5,7 +5,7 @@ import java.io.Serializable;
 /**
  * Code to be executed on the server
  */
-public interface ServerCode extends Runnable, Serializable {
+public interface RequestHandlingServerCode extends Runnable, Serializable {
     /**
      * Called in the remote VM. The code can receive requests while this method
      * is running.

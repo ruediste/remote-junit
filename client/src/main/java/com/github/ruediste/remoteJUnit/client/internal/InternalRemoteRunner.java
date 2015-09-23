@@ -32,8 +32,8 @@ import org.junit.runners.model.TestClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.MessageHandlingEnvironment;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
@@ -124,7 +124,7 @@ public class InternalRemoteRunner extends Runner
     }
 
     private static class ServerCode implements
-            Consumer<RemoteCodeEnvironment<RemoteJUnitMessage>>, Serializable {
+            Consumer<MessageHandlingEnvironment<RemoteJUnitMessage>>, Serializable {
         private static final long serialVersionUID = 1L;
 
         private static class SessionRunNotifier extends RunNotifier {
@@ -201,7 +201,7 @@ public class InternalRemoteRunner extends Runner
         }
 
         @Override
-        public void accept(RemoteCodeEnvironment<RemoteJUnitMessage> env) {
+        public void accept(MessageHandlingEnvironment<RemoteJUnitMessage> env) {
             log.debug("starting execution of " + testClass.getName());
 
             try {
@@ -413,7 +413,7 @@ public class InternalRemoteRunner extends Runner
         try {
             log.debug("starting remote execution of " + testClass);
             // try {
-            ClassLoadingRemoteCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingRemoteCodeRunnerClient<>();
+            ClassLoadingCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingCodeRunnerClient<>();
             client.setRunnerClient(new CodeRunnerClient(endpoint));
             if (parentClassloaderSupplierClass != null) {
                 ParentClassLoaderSupplier parentClassLoaderSupplier;

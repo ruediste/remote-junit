@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="13.3">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.baselet.element.old.allinone.SequenceDiagram</type>
+    <coordinates>
+      <x>300</x>
+      <y>170</y>
+      <w>810</w>
+      <h>380</h>
+    </coordinates>
+    <panel_attributes>title: CodeRunnerClient
+CodeRunnerClient~c|CodeRunnerServer~s| RequestHandlingServerCode~sc
+c-&gt;s:s:run code
+s-&gt;sc:s,sc:start
+c&lt;.s:s,sc:session id
+iframe{:Request/Response
+c-&gt;s:s,sc:send request
+s-&gt;sc:s,sc:forward request
+s&lt;.sc:s,sc:response
+c&lt;.s:sc,s:response
+iframe}</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>

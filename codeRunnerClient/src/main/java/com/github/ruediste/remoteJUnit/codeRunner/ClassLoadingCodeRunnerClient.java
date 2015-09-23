@@ -25,14 +25,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.RequestChannel;
 
 /**
  * Client
  */
-public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
+public class ClassLoadingCodeRunnerClient<TMessage> {
     final static Logger log = LoggerFactory
-            .getLogger(ClassLoadingRemoteCodeRunnerClient.class);
+            .getLogger(ClassLoadingCodeRunnerClient.class);
 
     interface RemoteCodeMessage extends Serializable {
 
@@ -171,12 +170,18 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
     }
 
-    public interface RemoteCodeEnvironment<TMessage> {
+    /**
+     * Allows to send and receive messages from/to the client
+     */
+    public interface MessageHandlingEnvironment<TMessage> {
 
         void sendToClient(TMessage msg);
 
         BlockingQueue<TMessage> getToServerMessages();
 
+        /**
+         * Return the class loader supporting dynamic loading of client classes
+         */
         ClassLoader getClassLoader();
 
     }
@@ -230,14 +235,17 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
     private ParentClassLoaderSupplier parentClassLoaderSupplier;
     private CodeRunnerClient client;
 
-    public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
-
-    BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler) {
+    public void runCode(MessageHandlingServerCode<TMessage> code,
+            BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler) {
         runCode(code, clientMessageHandler, new ClassMapBuilder());
     }
 
+    /**
+     * @param clientMessageHandler
+     *            handler for messages sent from the server back to the client
+     */
     @SuppressWarnings("unchecked")
-    public void runCode(Consumer<RemoteCodeEnvironment<TMessage>> code,
+    public void runCode(MessageHandlingServerCode<TMessage> code,
             BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler,
             ClassMapBuilder bootstrapClasses) {
         ClassLoadingRemoteCode<TMessage> clCode = new ClassLoadingRemoteCode<>(
@@ -251,7 +259,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
         RequestChannel channel = client.startCode(clCode,
                 bootstrapClasses.addClass(ClassLoadingRemoteCode.class,
-                        ClassLoadingRemoteCodeRunnerClient.class,
+                        ClassLoadingCodeRunnerClient.class,
                         SerializationHelper.class,
                         ParentClassLoaderSupplier.class));
 
@@ -294,7 +302,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     public HashMap<String, List<File>> jarMap = new HashMap<>();
 
-    public ClassLoadingRemoteCodeRunnerClient() {
+    public ClassLoadingCodeRunnerClient() {
         if (getClass().getClassLoader() instanceof URLClassLoader) {
             URLClassLoader cl = (URLClassLoader) getClass().getClassLoader();
             for (URL url : cl.getURLs()) {
@@ -303,21 +311,24 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     uri = url.toURI();
                     if (uri.getScheme().equals("file")) {
                         File file = new File(uri);
-                        if (file.exists()) {
-                            JarFile jarFile = new JarFile(file);
-                            Enumeration<JarEntry> entries = jarFile.entries();
-                            while (entries.hasMoreElements()) {
-                                JarEntry entry = entries.nextElement();
-                                if (entry.isDirectory() || entry.getName()
-                                        .equals(JarFile.MANIFEST_NAME)) {
-                                    continue;
+                        if (file.exists() && !file.isDirectory()) {
+                            try (JarFile jarFile = new JarFile(file)) {
+                                Enumeration<JarEntry> entries = jarFile
+                                        .entries();
+                                while (entries.hasMoreElements()) {
+                                    JarEntry entry = entries.nextElement();
+                                    if (entry.isDirectory() || entry.getName()
+                                            .equals(JarFile.MANIFEST_NAME)) {
+                                        continue;
+                                    }
+                                    List<File> list = jarMap
+                                            .get(entry.getName());
+                                    if (list == null) {
+                                        list = new ArrayList<>();
+                                        jarMap.put(entry.getName(), list);
+                                    }
+                                    list.add(file);
                                 }
-                                List<File> list = jarMap.get(entry.getName());
-                                if (list == null) {
-                                    list = new ArrayList<>();
-                                    jarMap.put(entry.getName(), list);
-                                }
-                                list.add(file);
                             }
                         }
                     }

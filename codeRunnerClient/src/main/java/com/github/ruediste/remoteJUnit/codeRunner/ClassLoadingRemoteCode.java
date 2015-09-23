@@ -16,22 +16,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
-import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.CustomMessageWrapper;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.EmptyResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RequestResourceMessage;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.ServerCodeExited;
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.ToClientMessagesResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.CustomMessageWrapper;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.EmptyResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.RequestResourceMessage;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.ServerCodeExited;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.ToClientMessagesResponse;
 import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.FailureResponse;
 
-class ClassLoadingRemoteCode<TMessage> implements ServerCode,
-        ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment<TMessage> {
+/**
+ * Code which is sent to the server and executes the {@link #codeDelegate}.
+ */
+class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
+        ClassLoadingCodeRunnerClient.MessageHandlingEnvironment<TMessage> {
 
     private static final long serialVersionUID = 1L;
 
@@ -156,8 +158,7 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
         @Override
         protected Class<?> loadClass(String name, boolean resolve)
                 throws ClassNotFoundException {
-            if (name.startsWith(
-                    ClassLoadingRemoteCodeRunnerClient.class.getName()))
+            if (name.startsWith(ClassLoadingCodeRunnerClient.class.getName()))
                 return getClass().getClassLoader().loadClass(name);
             return super.loadClass(name, resolve);
         }
@@ -187,7 +188,7 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
         }
 
         public void addResource(
-                ClassLoadingRemoteCodeRunnerClient.SendResourceMessage msg) {
+                ClassLoadingCodeRunnerClient.SendResourceMessage msg) {
             synchronized (resources) {
                 resources.put(msg.name, Optional.ofNullable(msg.data));
                 resources.notifyAll();
@@ -201,9 +202,8 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
                         new ByteArrayInputStream(jar))) {
                     JarEntry nextJarEntry;
                     while ((nextJarEntry = in.getNextJarEntry()) != null) {
-                        tmp.put(nextJarEntry.getName(),
-                                Optional.of(ClassLoadingRemoteCodeRunnerClient
-                                        .toByteArray(in)));
+                        tmp.put(nextJarEntry.getName(), Optional.of(
+                                ClassLoadingCodeRunnerClient.toByteArray(in)));
                     }
 
                 } catch (IOException e) {
@@ -226,7 +226,7 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
     }
 
     private final BlockingQueue<TMessage> toServer = new LinkedBlockingQueue<>();
-    private final BlockingQueue<ClassLoadingRemoteCodeRunnerClient.RemoteCodeMessage> toClient = new LinkedBlockingQueue<ClassLoadingRemoteCodeRunnerClient.RemoteCodeMessage>();
+    private final BlockingQueue<ClassLoadingCodeRunnerClient.RemoteCodeMessage> toClient = new LinkedBlockingQueue<ClassLoadingCodeRunnerClient.RemoteCodeMessage>();
 
     private ParentClassLoaderSupplier parentClassLoaderSupplier;
 
@@ -234,7 +234,7 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
     transient ExecutorService toServerDeserializer;
 
     public ClassLoadingRemoteCode(
-            Consumer<ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment<TMessage>> codeDelegate) {
+            MessageHandlingServerCode<TMessage> codeDelegate) {
         this.codeDelegate = SerializationHelper.toByteArray(codeDelegate);
 
     }
@@ -254,11 +254,11 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
         toServerDeserializer = Executors.newSingleThreadExecutor();
         try {
             classLoader = new RemoteClassLoader(this, getParentClassLoader());
-            ((Consumer<ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment<TMessage>>) SerializationHelper
-                    .toObject(codeDelegate, classLoader)).accept(this);
+            ((MessageHandlingServerCode<TMessage>) SerializationHelper
+                    .toObject(codeDelegate, classLoader)).run(this);
             toClient.add(new ServerCodeExited(null));
         } catch (Throwable e) {
-            ClassLoadingRemoteCodeRunnerClient.log.info("Error occurred: ", e);
+            ClassLoadingCodeRunnerClient.log.info("Error occurred: ", e);
             toClient.add(new ServerCodeExited(e));
         } finally {
             try {
@@ -271,56 +271,56 @@ class ClassLoadingRemoteCode<TMessage> implements ServerCode,
 
     @Override
     public byte[] handle(byte[] requestBa) {
-        ClassLoadingRemoteCodeRunnerClient.RemoteCodeRequest request = (ClassLoadingRemoteCodeRunnerClient.RemoteCodeRequest) SerializationHelper
+        ClassLoadingCodeRunnerClient.RemoteCodeRequest request = (ClassLoadingCodeRunnerClient.RemoteCodeRequest) SerializationHelper
                 .toObject(requestBa, getClass().getClassLoader());
-        ClassLoadingRemoteCodeRunnerClient.log.debug("handling {}", request);
+        ClassLoadingCodeRunnerClient.log.debug("handling {}", request);
         try {
             return SerializationHelper.toByteArray(handle(request));
         } catch (Exception e) {
             return SerializationHelper.toByteArray(new FailureResponse(e));
         } finally {
-            ClassLoadingRemoteCodeRunnerClient.log.debug(
+            ClassLoadingCodeRunnerClient.log.debug(
                     "handling " + request.getClass().getSimpleName() + " done");
         }
     }
 
     @SuppressWarnings("unchecked")
-    private ClassLoadingRemoteCodeRunnerClient.RemoteCodeResponse handle(
-            ClassLoadingRemoteCodeRunnerClient.RemoteCodeRequest request) {
-        if (request instanceof ClassLoadingRemoteCodeRunnerClient.GetToClientMessagesRequest) {
-            List<ClassLoadingRemoteCodeRunnerClient.RemoteCodeMessage> messages = new ArrayList<>();
+    private ClassLoadingCodeRunnerClient.RemoteCodeResponse handle(
+            ClassLoadingCodeRunnerClient.RemoteCodeRequest request) {
+        if (request instanceof ClassLoadingCodeRunnerClient.GetToClientMessagesRequest) {
+            List<ClassLoadingCodeRunnerClient.RemoteCodeMessage> messages = new ArrayList<>();
             try {
                 messages.add(toClient.take());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
             toClient.drainTo(messages);
-            ClassLoadingRemoteCodeRunnerClient.log
-                    .debug("sending to client: {}", messages);
+            ClassLoadingCodeRunnerClient.log.debug("sending to client: {}",
+                    messages);
             return new ToClientMessagesResponse(messages);
         } else
-            if (request instanceof ClassLoadingRemoteCodeRunnerClient.SendToServerMessagesRequest) {
-            ClassLoadingRemoteCodeRunnerClient.SendToServerMessagesRequest sendToServerMessagesRequest = (ClassLoadingRemoteCodeRunnerClient.SendToServerMessagesRequest) request;
-            for (ClassLoadingRemoteCodeRunnerClient.RemoteCodeMessage message : sendToServerMessagesRequest.messages) {
-                ClassLoadingRemoteCodeRunnerClient.log
+            if (request instanceof ClassLoadingCodeRunnerClient.SendToServerMessagesRequest) {
+            ClassLoadingCodeRunnerClient.SendToServerMessagesRequest sendToServerMessagesRequest = (ClassLoadingCodeRunnerClient.SendToServerMessagesRequest) request;
+            for (ClassLoadingCodeRunnerClient.RemoteCodeMessage message : sendToServerMessagesRequest.messages) {
+                ClassLoadingCodeRunnerClient.log
                         .debug("handling toServer message " + message);
-                if (message instanceof ClassLoadingRemoteCodeRunnerClient.ServerCodeExitReceived) {
+                if (message instanceof ClassLoadingCodeRunnerClient.ServerCodeExitReceived) {
                     toServerDeserializer.shutdown();
                     exitConfirmationReceived.release();
                 } else
-                    if (message instanceof ClassLoadingRemoteCodeRunnerClient.SendResourceMessage) {
+                    if (message instanceof ClassLoadingCodeRunnerClient.SendResourceMessage) {
                     classLoader.addResource(
-                            (ClassLoadingRemoteCodeRunnerClient.SendResourceMessage) message);
-                } else if (message instanceof ClassLoadingRemoteCodeRunnerClient.SendJarsMessage) {
+                            (ClassLoadingCodeRunnerClient.SendResourceMessage) message);
+                } else if (message instanceof ClassLoadingCodeRunnerClient.SendJarsMessage) {
                     classLoader.addJars(
-                            ((ClassLoadingRemoteCodeRunnerClient.SendJarsMessage) message).jars);
+                            ((ClassLoadingCodeRunnerClient.SendJarsMessage) message).jars);
                 } else
-                    if (message instanceof ClassLoadingRemoteCodeRunnerClient.CustomMessageWrapper) {
+                    if (message instanceof ClassLoadingCodeRunnerClient.CustomMessageWrapper) {
                     toServerDeserializer.execute(() -> {
-                        ClassLoadingRemoteCodeRunnerClient.CustomMessageWrapper wrapper = (ClassLoadingRemoteCodeRunnerClient.CustomMessageWrapper) message;
+                        ClassLoadingCodeRunnerClient.CustomMessageWrapper wrapper = (ClassLoadingCodeRunnerClient.CustomMessageWrapper) message;
                         TMessage wrappedMessage = (TMessage) SerializationHelper
                                 .toObject(wrapper.message, classLoader);
-                        ClassLoadingRemoteCodeRunnerClient.log.debug(
+                        ClassLoadingCodeRunnerClient.log.debug(
                                 "received and deserialized custom message {}",
                                 wrappedMessage);
                         toServer.add(wrappedMessage);

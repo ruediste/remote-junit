@@ -31,7 +31,7 @@ public class CodeRunnerRequestHandler {
             .getLogger(CodeRunnerRequestHandler.class);
 
     private AtomicLong nextCodeId = new AtomicLong(0);
-    private ConcurrentMap<Long, ServerCode> remoteCodes = new ConcurrentHashMap<>();
+    private ConcurrentMap<Long, RequestHandlingServerCode> remoteCodes = new ConcurrentHashMap<>();
 
     private Executor executor;
 
@@ -44,7 +44,7 @@ public class CodeRunnerRequestHandler {
 
     /**
      * @param executor
-     *            Used to execute the supplied {@link ServerCode}s. The executor
+     *            Used to execute the supplied {@link RequestHandlingServerCode}s. The executor
      *            MUST return immediately, starting the supplied runnable in a
      *            separate thread.
      */
@@ -168,7 +168,7 @@ public class CodeRunnerRequestHandler {
         log.debug("Handling " + req.getClass().getSimpleName());
         if (req instanceof RemoteCodeRunnerRequestsAndResponses.CustomRequest) {
             CustomRequest customRequest = (CustomRequest) req;
-            ServerCode remoteCode = remoteCodes.get(customRequest.runId);
+            RequestHandlingServerCode remoteCode = remoteCodes.get(customRequest.runId);
             if (remoteCode != null)
                 return new RemoteCodeRunnerRequestsAndResponses.CustomResponse(
                         remoteCode.handle(customRequest.payload));
@@ -186,7 +186,7 @@ public class CodeRunnerRequestHandler {
                 cl = new CodeBootstrapClassLoader(parentClassLoader,
                         runRequest.bootstrapClasses);
 
-            ServerCode remoteCode;
+            RequestHandlingServerCode remoteCode;
             try {
                 Class<?> cls = cl
                         .findClass(DeserializationHelper.class.getName());
@@ -195,7 +195,7 @@ public class CodeRunnerRequestHandler {
                 @SuppressWarnings("unchecked")
                 Function<byte[], Object> deserializationHelper = (Function<byte[], Object>) constructor
                         .newInstance();
-                remoteCode = (ServerCode) deserializationHelper
+                remoteCode = (RequestHandlingServerCode) deserializationHelper
                         .apply(((RunCodeRequest) req).code);
             } catch (Exception e) {
                 return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(

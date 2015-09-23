@@ -16,10 +16,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.CustomResponse;
 import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.FailureResponse;
 import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.Response;
 
+/**
+ * Client to run {@link RequestHandlingServerCode} on a code runner server.
+ * 
+ * <p>
+ * <img src="doc-files/CodeRunnerClient_sequence.png"/>
+ * <p>
+ * The transport mechanism is pluggable by using a custom
+ * {@link #setMessageSender(Function)}
+ */
 public class CodeRunnerClient {
     private static final Logger log = LoggerFactory
             .getLogger(CodeRunnerClient.class);
@@ -36,27 +44,6 @@ public class CodeRunnerClient {
 
     public CodeRunnerClient(Function<byte[], byte[]> messageSender) {
         this.requestSender = messageSender;
-    }
-
-    public static class RequestChannel {
-        private long runId;
-        private Function<byte[], byte[]> requestSender;
-
-        public RequestChannel(long runId,
-                Function<byte[], byte[]> requestSender) {
-            this.runId = runId;
-            this.requestSender = requestSender;
-        }
-
-        public Object sendRequest(Object request) {
-            log.debug("sending custom request " + request.getClass().getName());
-            RemoteCodeRunnerRequestsAndResponses.CustomResponse resp = (CustomResponse) toResponse(
-                    requestSender.apply(SerializationHelper.toByteArray(
-                            new RemoteCodeRunnerRequestsAndResponses.CustomRequest(runId,
-                                    SerializationHelper
-                                            .toByteArray(request)))));
-            return SerializationHelper.toObject(resp.payload);
-        }
     }
 
     public static class ClassMapBuilder {
@@ -110,18 +97,21 @@ public class CodeRunnerClient {
 
     }
 
-    public RequestChannel startCode(ServerCode remoteCode,
+    public RequestChannel startCode(RequestHandlingServerCode remoteCode,
             ClassMapBuilder bootstrapClasses) {
         log.debug("starting " + remoteCode.getClass().getName());
         RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse response = (CodeStartedResponse) toResponse(
-                requestSender.apply(SerializationHelper
-                        .toByteArray(new RemoteCodeRunnerRequestsAndResponses.RunCodeRequest(
-                                SerializationHelper.toByteArray(remoteCode),
-                                bootstrapClasses.map))));
+                requestSender
+                        .apply(SerializationHelper.toByteArray(
+                                new RemoteCodeRunnerRequestsAndResponses.RunCodeRequest(
+                                        SerializationHelper
+                                                .toByteArray(remoteCode),
+                                        bootstrapClasses.map))));
         return new RequestChannel(response.runId, requestSender);
     }
 
-    private static RemoteCodeRunnerRequestsAndResponses.Response toResponse(byte[] bytes) {
+    static RemoteCodeRunnerRequestsAndResponses.Response toResponse(
+            byte[] bytes) {
         Response resp = (Response) SerializationHelper.toObject(bytes);
         if (resp instanceof FailureResponse) {
             throw new RuntimeException(((FailureResponse) resp).exception);
