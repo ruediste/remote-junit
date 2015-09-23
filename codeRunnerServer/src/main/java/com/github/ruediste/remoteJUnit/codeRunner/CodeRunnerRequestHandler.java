@@ -18,18 +18,20 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.CustomRequest;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RemoteCode;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.Request;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.RunCodeRequest;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.CustomRequest;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.Request;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.RunCodeRequest;
 
+/**
+ * Implements a server accepting code and executing it
+ */
 public class CodeRunnerRequestHandler {
 
     private final static Logger log = LoggerFactory
             .getLogger(CodeRunnerRequestHandler.class);
 
     private AtomicLong nextCodeId = new AtomicLong(0);
-    private ConcurrentMap<Long, RemoteCode> remoteCodes = new ConcurrentHashMap<>();
+    private ConcurrentMap<Long, ServerCode> remoteCodes = new ConcurrentHashMap<>();
 
     private Executor executor;
 
@@ -42,7 +44,7 @@ public class CodeRunnerRequestHandler {
 
     /**
      * @param executor
-     *            Used to execute the supplied {@link RemoteCode}s. The executor
+     *            Used to execute the supplied {@link ServerCode}s. The executor
      *            MUST return immediately, starting the supplied runnable in a
      *            separate thread.
      */
@@ -52,21 +54,29 @@ public class CodeRunnerRequestHandler {
         this.executor = executor;
     }
 
-    public CodeRunnerCommon.Response handle(InputStream in) throws IOException {
+    public byte[] handle(byte[] request) throws IOException {
+        try (InputStream in = new ByteArrayInputStream(request)) {
+            return handle(in);
+        }
+    }
+
+    public byte[] handle(InputStream in) throws IOException {
         ObjectInputStream oin = new ObjectInputStream(in);
-        CodeRunnerCommon.Request req = null;
+        RemoteCodeRunnerRequestsAndResponses.Request req = null;
         try {
             req = (Request) oin.readObject();
         } catch (ClassNotFoundException e) {
             log.error("Error while parsing request", e);
-            return new CodeRunnerCommon.FailureResponse(e);
+            return toByteArray(
+                    new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
+                            e));
         }
 
-        return handleRequest(req);
+        return toByteArray(handleRequest(req));
 
     }
 
-    public static byte[] toByteArray(Object resp) throws IOException {
+    private static byte[] toByteArray(Object resp) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ObjectOutputStream out = new ObjectOutputStream(baos)) {
             out.writeObject(resp);
@@ -153,17 +163,17 @@ public class CodeRunnerRequestHandler {
         }
     }
 
-    public CodeRunnerCommon.Response handleRequest(
-            CodeRunnerCommon.Request req) {
+    RemoteCodeRunnerRequestsAndResponses.Response handleRequest(
+            RemoteCodeRunnerRequestsAndResponses.Request req) {
         log.debug("Handling " + req.getClass().getSimpleName());
-        if (req instanceof CodeRunnerCommon.CustomRequest) {
+        if (req instanceof RemoteCodeRunnerRequestsAndResponses.CustomRequest) {
             CustomRequest customRequest = (CustomRequest) req;
-            RemoteCode remoteCode = remoteCodes.get(customRequest.runId);
+            ServerCode remoteCode = remoteCodes.get(customRequest.runId);
             if (remoteCode != null)
-                return new CodeRunnerCommon.CustomResponse(
+                return new RemoteCodeRunnerRequestsAndResponses.CustomResponse(
                         remoteCode.handle(customRequest.payload));
             else
-                return new CodeRunnerCommon.FailureResponse(
+                return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
                         new RuntimeException("Code already completed"));
         } else if (req instanceof RunCodeRequest) {
             RunCodeRequest runRequest = (RunCodeRequest) req;
@@ -176,7 +186,7 @@ public class CodeRunnerRequestHandler {
                 cl = new CodeBootstrapClassLoader(parentClassLoader,
                         runRequest.bootstrapClasses);
 
-            RemoteCode remoteCode;
+            ServerCode remoteCode;
             try {
                 Class<?> cls = cl
                         .findClass(DeserializationHelper.class.getName());
@@ -185,10 +195,11 @@ public class CodeRunnerRequestHandler {
                 @SuppressWarnings("unchecked")
                 Function<byte[], Object> deserializationHelper = (Function<byte[], Object>) constructor
                         .newInstance();
-                remoteCode = (RemoteCode) deserializationHelper
+                remoteCode = (ServerCode) deserializationHelper
                         .apply(((RunCodeRequest) req).code);
             } catch (Exception e) {
-                return new CodeRunnerCommon.FailureResponse(e);
+                return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
+                        e);
             }
             remoteCodes.put(codeId, remoteCode);
             log.debug("invoking code");
@@ -200,9 +211,10 @@ public class CodeRunnerRequestHandler {
                 }
             });
             log.debug("sending codeStartedResponse. CodeId: " + codeId);
-            return new CodeRunnerCommon.CodeStartedResponse(codeId);
+            return new RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse(
+                    codeId);
         } else
-            return new CodeRunnerCommon.FailureResponse(
+            return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
                     new RuntimeException("Unknonw request " + req));
     }
 }

@@ -15,10 +15,10 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.CodeStartedResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.CustomResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.FailureResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.Response;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.CustomResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.FailureResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.Response;
 
 public class CodeRunnerClient {
     private static final Logger log = LoggerFactory
@@ -50,9 +50,9 @@ public class CodeRunnerClient {
 
         public Object sendRequest(Object request) {
             log.debug("sending custom request " + request.getClass().getName());
-            CodeRunnerCommon.CustomResponse resp = (CustomResponse) toResponse(
+            RemoteCodeRunnerRequestsAndResponses.CustomResponse resp = (CustomResponse) toResponse(
                     requestSender.apply(SerializationHelper.toByteArray(
-                            new CodeRunnerCommon.CustomRequest(runId,
+                            new RemoteCodeRunnerRequestsAndResponses.CustomRequest(runId,
                                     SerializationHelper
                                             .toByteArray(request)))));
             return SerializationHelper.toObject(resp.payload);
@@ -110,18 +110,18 @@ public class CodeRunnerClient {
 
     }
 
-    public RequestChannel startCode(CodeRunnerCommon.RemoteCode remoteCode,
+    public RequestChannel startCode(ServerCode remoteCode,
             ClassMapBuilder bootstrapClasses) {
         log.debug("starting " + remoteCode.getClass().getName());
-        CodeRunnerCommon.CodeStartedResponse response = (CodeStartedResponse) toResponse(
+        RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse response = (CodeStartedResponse) toResponse(
                 requestSender.apply(SerializationHelper
-                        .toByteArray(new CodeRunnerCommon.RunCodeRequest(
+                        .toByteArray(new RemoteCodeRunnerRequestsAndResponses.RunCodeRequest(
                                 SerializationHelper.toByteArray(remoteCode),
                                 bootstrapClasses.map))));
         return new RequestChannel(response.runId, requestSender);
     }
 
-    private static CodeRunnerCommon.Response toResponse(byte[] bytes) {
+    private static RemoteCodeRunnerRequestsAndResponses.Response toResponse(byte[] bytes) {
         Response resp = (Response) SerializationHelper.toObject(bytes);
         if (resp instanceof FailureResponse) {
             throw new RuntimeException(((FailureResponse) resp).exception);

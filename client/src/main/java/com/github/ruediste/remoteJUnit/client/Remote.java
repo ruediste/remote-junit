@@ -19,7 +19,6 @@ import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
  * The annotation will only be picked up if the class is also {@link RunWith}(
  * {@link RemoteTestRunner}.class)
  * 
- * @author recht
  *
  */
 @Target(ElementType.TYPE)

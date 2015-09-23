@@ -49,13 +49,9 @@ public class CodeRunnerStandaloneServer extends NanoHTTPD {
     public Response serve(IHTTPSession session) {
 
         try {
-
-            CodeRunnerCommon.Response resp = getHandler()
-                    .handle(session.getInputStream());
-
-            byte[] ba = CodeRunnerRequestHandler.toByteArray(resp);
+            byte[] response = getHandler().handle(session.getInputStream());
             return new Response(Status.OK, "application/octet-stream",
-                    new ByteArrayInputStream(ba));
+                    new ByteArrayInputStream(response));
         } catch (IOException e) {
             return new Response(Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                     "Error: " + e.getMessage());

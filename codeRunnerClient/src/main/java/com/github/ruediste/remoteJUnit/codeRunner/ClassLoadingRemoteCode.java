@@ -28,9 +28,9 @@ import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerCl
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RequestResourceMessage;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.ServerCodeExited;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.ToClientMessagesResponse;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.FailureResponse;
+import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndResponses.FailureResponse;
 
-class ClassLoadingRemoteCode<TMessage> implements CodeRunnerCommon.RemoteCode,
+class ClassLoadingRemoteCode<TMessage> implements ServerCode,
         ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment<TMessage> {
 
     private static final long serialVersionUID = 1L;

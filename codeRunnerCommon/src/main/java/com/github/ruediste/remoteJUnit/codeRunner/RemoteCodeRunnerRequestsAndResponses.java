@@ -3,22 +3,11 @@ package com.github.ruediste.remoteJUnit.codeRunner;
 import java.io.Serializable;
 import java.util.Map;
 
-public class CodeRunnerCommon {
+class RemoteCodeRunnerRequestsAndResponses {
 
-    public interface RemoteCode extends Runnable, Serializable {
-        /**
-         * Called in the remote VM. The code can receive requests while this
-         * method is running.
-         */
-        @Override
-        void run();
-
-        /**
-         * Handle a custom request, while {@link #run()} is running
-         */
-        byte[] handle(byte[] request);
-    }
-
+    /**
+     * Sent to from the client to the server
+     */
     public interface Request extends Serializable {
     }
 
@@ -47,6 +36,9 @@ public class CodeRunnerCommon {
 
     }
 
+    /**
+     * Responses from the server to the client
+     */
     public interface Response extends Serializable {
     }
 
