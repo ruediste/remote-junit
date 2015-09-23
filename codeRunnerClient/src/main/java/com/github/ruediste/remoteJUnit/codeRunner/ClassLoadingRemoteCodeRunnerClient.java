@@ -1,6 +1,5 @@
 package com.github.ruediste.remoteJUnit.codeRunner;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,45 +14,42 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.jar.JarInputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.RequestChannel;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon.FailureResponse;
 
+/**
+ * Client
+ */
 public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
-    private final static Logger log = LoggerFactory
+    final static Logger log = LoggerFactory
             .getLogger(ClassLoadingRemoteCodeRunnerClient.class);
 
-    private interface RemoteCodeMessage extends Serializable {
+    interface RemoteCodeMessage extends Serializable {
 
     }
 
-    public static class RequestClassMessage implements RemoteCodeMessage {
+    public static class RequestResourceMessage implements RemoteCodeMessage {
 
         private static final long serialVersionUID = 1L;
         public String name;
 
-        public RequestClassMessage(String name) {
+        public RequestResourceMessage(String name) {
             this.name = name;
         }
 
         @Override
         public String toString() {
-            return "RequestClassMessage(" + name + ")";
+            return "RequestResourceMessage(" + name + ")";
         }
     }
 
@@ -81,12 +77,12 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
     }
 
-    public static class SendClassMessage implements RemoteCodeMessage {
+    public static class SendResourceMessage implements RemoteCodeMessage {
         private static final long serialVersionUID = 1L;
         public byte[] data;
         public String name;
 
-        public SendClassMessage(String name, byte[] data) {
+        public SendResourceMessage(String name, byte[] data) {
             this.name = name;
             this.data = data;
         }
@@ -185,250 +181,6 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
 
     }
 
-    private static class ClassLoadingRemoteCode<TMessage> implements
-            CodeRunnerCommon.RemoteCode, RemoteCodeEnvironment<TMessage> {
-
-        private static final long serialVersionUID = 1L;
-
-        private static class SessionClassLoader extends ClassLoader {
-            private static final Logger log = LoggerFactory
-                    .getLogger(SessionClassLoader.class);
-
-            static {
-                registerAsParallelCapable();
-            }
-
-            private ClassLoadingRemoteCode<?> code;
-
-            Map<String, byte[]> classData = new HashMap<String, byte[]>();
-
-            SessionClassLoader(ClassLoadingRemoteCode<?> code,
-                    ClassLoader parent) {
-                super(parent);
-                this.code = code;
-            }
-
-            @Override
-            protected Class<?> loadClass(String name, boolean resolve)
-                    throws ClassNotFoundException {
-                if (name.startsWith(
-                        ClassLoadingRemoteCodeRunnerClient.class.getName()))
-                    return getClass().getClassLoader().loadClass(name);
-                return super.loadClass(name, resolve);
-            }
-
-            @Override
-            protected Class<?> findClass(String name)
-                    throws ClassNotFoundException {
-
-                byte[] data;
-                synchronized (classData) {
-                    data = classData.get(name);
-                }
-                if (data == null) {
-                    log.debug("requesting from client: " + name);
-                    // request class
-                    try {
-                        code.toClient.put(new RequestClassMessage(name));
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    // wait for class to be returned
-                    long start = System.currentTimeMillis();
-                    do {
-                        synchronized (classData) {
-                            data = classData.get(name);
-                            if (data == null)
-                                try {
-                                    classData.wait(500);
-                                } catch (InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                        }
-                        if (System.currentTimeMillis() > start + 2000) {
-                            // 2 seconds elapsed, abort
-                            throw new ClassNotFoundException(name);
-                        }
-                    } while (data == null);
-                    log.debug("loaded from client: " + name);
-                }
-                if (data.length == 0)
-                    throw new ClassNotFoundException(name);
-                else
-                    return defineClass(name, data, 0, data.length);
-            }
-
-            public void addClass(SendClassMessage msg) {
-                synchronized (classData) {
-                    classData.put(msg.name, msg.data);
-                    classData.notifyAll();
-                }
-            }
-
-            public void addJars(List<byte[]> jars) {
-                HashMap<String, byte[]> classes = new HashMap<>();
-                for (byte[] jar : jars) {
-                    try (JarInputStream in = new JarInputStream(
-                            new ByteArrayInputStream(jar))) {
-                        JarEntry nextJarEntry;
-                        while ((nextJarEntry = in.getNextJarEntry()) != null) {
-                            String name = nextJarEntry.getName();
-                            if (name.endsWith(".class")) {
-                                String className = name
-                                        .substring(0,
-                                                name.length()
-                                                        - ".class".length())
-                                        .replace('/', '.');
-                                classes.put(className, toByteArray(in));
-                            }
-                        }
-
-                    } catch (IOException e) {
-                        throw new RuntimeException(
-                                "Error while reading jar files", e);
-                    }
-                }
-                synchronized (classData) {
-                    classData.putAll(classes);
-                    classData.notifyAll();
-                }
-            }
-        }
-
-        private SessionClassLoader classLoader;
-
-        @Override
-        public ClassLoader getClassLoader() {
-            return classLoader;
-        }
-
-        private final BlockingQueue<TMessage> toServer = new LinkedBlockingQueue<>();
-        private final BlockingQueue<RemoteCodeMessage> toClient = new LinkedBlockingQueue<RemoteCodeMessage>();
-
-        private ParentClassLoaderSupplier parentClassLoaderSupplier;
-
-        private byte[] codeDelegate;
-        transient ExecutorService toServerDeserializer;
-
-        public ClassLoadingRemoteCode(
-                Consumer<RemoteCodeEnvironment<TMessage>> codeDelegate) {
-            this.codeDelegate = SerializationHelper.toByteArray(codeDelegate);
-
-        }
-
-        private ClassLoader getParentClassLoader() {
-            if (parentClassLoaderSupplier == null)
-                return Thread.currentThread().getContextClassLoader();
-            else
-                return parentClassLoaderSupplier.getParentClassLoader();
-        }
-
-        Semaphore exitConfirmationReceived = new Semaphore(0);
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public void run() {
-            toServerDeserializer = Executors.newSingleThreadExecutor();
-            try {
-                classLoader = new SessionClassLoader(this,
-                        getParentClassLoader());
-                ((Consumer<RemoteCodeEnvironment<TMessage>>) SerializationHelper
-                        .toObject(codeDelegate, classLoader)).accept(this);
-                toClient.add(new ServerCodeExited(null));
-            } catch (Throwable e) {
-                log.info("Error occurred: ", e);
-                toClient.add(new ServerCodeExited(e));
-            } finally {
-                try {
-                    exitConfirmationReceived.acquire();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-
-        @Override
-        public byte[] handle(byte[] requestBa) {
-            RemoteCodeRequest request = (RemoteCodeRequest) SerializationHelper
-                    .toObject(requestBa, getClass().getClassLoader());
-            log.debug("handling {}", request);
-            try {
-                return SerializationHelper.toByteArray(handle(request));
-            } catch (Exception e) {
-                return SerializationHelper.toByteArray(new FailureResponse(e));
-            } finally {
-                log.debug("handling " + request.getClass().getSimpleName()
-                        + " done");
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        private RemoteCodeResponse handle(RemoteCodeRequest request) {
-            if (request instanceof GetToClientMessagesRequest) {
-                List<RemoteCodeMessage> messages = new ArrayList<>();
-                try {
-                    messages.add(toClient.take());
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                toClient.drainTo(messages);
-                log.debug("sending to client: {}", messages);
-                return new ToClientMessagesResponse(messages);
-            } else if (request instanceof SendToServerMessagesRequest) {
-                SendToServerMessagesRequest sendToServerMessagesRequest = (SendToServerMessagesRequest) request;
-                for (RemoteCodeMessage message : sendToServerMessagesRequest.messages) {
-                    log.debug("handling toServer message " + message);
-                    if (message instanceof ServerCodeExitReceived) {
-                        toServerDeserializer.shutdown();
-                        exitConfirmationReceived.release();
-                    } else if (message instanceof SendClassMessage) {
-                        classLoader.addClass((SendClassMessage) message);
-                    } else if (message instanceof SendJarsMessage) {
-                        classLoader.addJars(((SendJarsMessage) message).jars);
-                    } else if (message instanceof CustomMessageWrapper) {
-                        toServerDeserializer.execute(() -> {
-                            CustomMessageWrapper wrapper = (CustomMessageWrapper) message;
-                            TMessage wrappedMessage = (TMessage) SerializationHelper
-                                    .toObject(wrapper.message, classLoader);
-                            log.debug(
-                                    "received and deserialized custom message {}",
-                                    wrappedMessage);
-                            toServer.add(wrappedMessage);
-                        });
-                    } else
-                        throw new UnsupportedOperationException(
-                                "Unknown message " + message);
-                }
-
-                return new EmptyResponse();
-            } else
-                throw new UnsupportedOperationException(
-                        request.getClass().getName());
-
-        }
-
-        public ParentClassLoaderSupplier getParentClassLoaderSupplier() {
-            return parentClassLoaderSupplier;
-        }
-
-        public void setParentClassLoaderSupplier(
-                ParentClassLoaderSupplier parentClassLoaderSupplier) {
-            this.parentClassLoaderSupplier = parentClassLoaderSupplier;
-        }
-
-        @Override
-        public BlockingQueue<TMessage> getToServerMessages() {
-            return toServer;
-        }
-
-        @Override
-        public void sendToClient(TMessage msg) {
-            toClient.add(new CustomMessageWrapper(
-                    SerializationHelper.toByteArray(msg)));
-        }
-    }
-
     private final class ToServerSender implements Runnable {
         private BlockingQueue<RemoteCodeMessage> toServer;
         private RequestChannel channel;
@@ -498,7 +250,7 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
             client = new CodeRunnerClient();
         }
         RequestChannel channel = client.startCode(clCode,
-                bootstrapClasses.addClass(
+                bootstrapClasses.addClass(ClassLoadingRemoteCode.class,
                         ClassLoadingRemoteCodeRunnerClient.class,
                         SerializationHelper.class,
                         ParentClassLoaderSupplier.class));
@@ -530,11 +282,11 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                     }
 
                     break messageProcessingLoop;
-                } else if (message instanceof RequestClassMessage) {
-                    RequestClassMessage sendClassMessage = (RequestClassMessage) message;
-                    String name = sendClassMessage.name;
-                    log.debug("handling sendClassMessage for " + name);
-                    sendClass(msgChannel, name);
+                } else if (message instanceof RequestResourceMessage) {
+                    RequestResourceMessage sendResourceMessage = (RequestResourceMessage) message;
+                    String name = sendResourceMessage.name;
+                    log.debug("handling sendResourceMessage for " + name);
+                    sendResource(msgChannel, name);
                 }
             }
         }
@@ -576,8 +328,8 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
         }
     }
 
-    private void sendClass(MessageChannel<TMessage> msgChannel, String name) {
-        String resourceName = name.replace('.', '/') + ".class";
+    private void sendResource(MessageChannel<TMessage> msgChannel,
+            String resourceName) {
         {
             List<File> list = jarMap.get(resourceName);
             if (list != null) {
@@ -598,18 +350,19 @@ public class ClassLoadingRemoteCodeRunnerClient<TMessage> {
                 .getContextClassLoader();
         InputStream in = classLoader.getResourceAsStream(resourceName);
         if (in == null) {
-            msgChannel.toServer.add(new SendClassMessage(name, new byte[] {}));
+            msgChannel.toServer
+                    .add(new SendResourceMessage(resourceName, null));
         } else {
             try (InputStream ins = in) {
-                msgChannel.toServer
-                        .add(new SendClassMessage(name, toByteArray(in)));
+                msgChannel.toServer.add(
+                        new SendResourceMessage(resourceName, toByteArray(in)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    private static byte[] toByteArray(InputStream in) throws IOException {
+    static byte[] toByteArray(InputStream in) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             byte[] buffer = new byte[1024];
