@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="13.3">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.baselet.element.old.allinone.SequenceDiagram</type>
+    <coordinates>
+      <x>40</x>
+      <y>40</y>
+      <w>740</w>
+      <h>260</h>
+    </coordinates>
+    <panel_attributes>title: Message sending
+toServer:Queue~q|toServer:Thread~t|RequestHandler~h|HandlerCode~hc
+iframe{:repeat
+q&lt;-t:q,t:take
+t-&gt;h:t,h:sendToServerMessages
+h-&gt;hc:t,h,hc
+iframe}</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.baselet.element.old.allinone.SequenceDiagram</type>
+    <coordinates>
+      <x>40</x>
+      <y>310</y>
+      <w>540</w>
+      <h>260</h>
+    </coordinates>
+    <panel_attributes>title: Message receiving
+main:Thread~t|RequestHandler~h|toClient:queue~q
+iframe{:repeat
+t-&gt;h:t,h:getToClientMessages
+h-&gt;q:t,h,q:take,drain
+t&lt;.h:t,h:toClientMessages
+iframe}</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>

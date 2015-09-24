@@ -11,11 +11,11 @@
     </coordinates>
     <panel_attributes>title: CodeRunnerClient
 CodeRunnerClient~c|CodeRunnerServer~s| RequestHandlingServerCode~sc
-c-&gt;s:s:run code
+c-&gt;s:s:code
 s-&gt;sc:s,sc:start
 c&lt;.s:s,sc:session id
 iframe{:Request/Response
-c-&gt;s:s,sc:send request
+c-&gt;s:s,sc:request
 s-&gt;sc:s,sc:forward request
 s&lt;.sc:s,sc:response
 c&lt;.s:sc,s:response

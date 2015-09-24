@@ -36,6 +36,7 @@ import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.MessageHandlingEnvironment;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
+import com.github.ruediste.remoteJUnit.codeRunner.MessageHandlingServerCode;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
 public class InternalRemoteRunner extends Runner
@@ -123,8 +124,8 @@ public class InternalRemoteRunner extends Runner
 
     }
 
-    private static class ServerCode implements
-            Consumer<MessageHandlingEnvironment<RemoteJUnitMessage>>, Serializable {
+    private static class ServerCode
+            implements MessageHandlingServerCode<RemoteJUnitMessage> {
         private static final long serialVersionUID = 1L;
 
         private static class SessionRunNotifier extends RunNotifier {
@@ -201,7 +202,7 @@ public class InternalRemoteRunner extends Runner
         }
 
         @Override
-        public void accept(MessageHandlingEnvironment<RemoteJUnitMessage> env) {
+        public void run(MessageHandlingEnvironment<RemoteJUnitMessage> env) {
             log.debug("starting execution of " + testClass.getName());
 
             try {

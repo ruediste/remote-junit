@@ -25,8 +25,15 @@ import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndRes
  * <p>
  * <img src="doc-files/CodeRunnerClient_sequence.png"/>
  * <p>
+ * Using {@link #startCode(RequestHandlingServerCode, ClassMapBuilder)}, a piece
+ * of code can be sent to the server where it is started. A session id is
+ * returned, which can then be used to send requests to the server code, as long
+ * as the code is running.
+ * 
+ * <p>
  * The transport mechanism is pluggable by using a custom
- * {@link #setMessageSender(Function)}
+ * {@link #CodeRunnerClient(Function) message sender}. By default, communication
+ * happens via HTTP POST requests.
  */
 public class CodeRunnerClient {
     private static final Logger log = LoggerFactory
@@ -123,8 +130,8 @@ public class CodeRunnerClient {
         return requestSender;
     }
 
-    public void setMessageSender(Function<byte[], byte[]> messageSender) {
-        this.requestSender = messageSender;
+    public void setRequestSender(Function<byte[], byte[]> requestSender) {
+        this.requestSender = requestSender;
     }
 
     private static class HttpSender implements Function<byte[], byte[]> {

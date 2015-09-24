@@ -32,7 +32,7 @@ import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndRes
 /**
  * Code which is sent to the server and executes the {@link #codeDelegate}.
  */
-class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
+class ClassLoadingServerCode<TMessage> implements RequestHandlingServerCode,
         ClassLoadingCodeRunnerClient.MessageHandlingEnvironment<TMessage> {
 
     private static final long serialVersionUID = 1L;
@@ -69,17 +69,17 @@ class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
         }
 
         private static final Logger log = LoggerFactory
-                .getLogger(ClassLoadingRemoteCode.RemoteClassLoader.class);
+                .getLogger(ClassLoadingServerCode.RemoteClassLoader.class);
 
         static {
             registerAsParallelCapable();
         }
 
-        private ClassLoadingRemoteCode<?> code;
+        private ClassLoadingServerCode<?> code;
 
         Map<String, Optional<byte[]>> resources = new HashMap<>();
 
-        RemoteClassLoader(ClassLoadingRemoteCode<?> code, ClassLoader parent) {
+        RemoteClassLoader(ClassLoadingServerCode<?> code, ClassLoader parent) {
             super(parent);
             this.code = code;
         }
@@ -158,7 +158,8 @@ class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
         @Override
         protected Class<?> loadClass(String name, boolean resolve)
                 throws ClassNotFoundException {
-            if (name.startsWith(ClassLoadingCodeRunnerClient.class.getName()))
+            if (name.startsWith(ClassLoadingCodeRunnerClient.class.getName())
+                    || name.equals(MessageHandlingServerCode.class.getName()))
                 return getClass().getClassLoader().loadClass(name);
             return super.loadClass(name, resolve);
         }
@@ -218,7 +219,7 @@ class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
         }
     }
 
-    private ClassLoadingRemoteCode.RemoteClassLoader classLoader;
+    private ClassLoadingServerCode.RemoteClassLoader classLoader;
 
     @Override
     public ClassLoader getClassLoader() {
@@ -233,7 +234,7 @@ class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
     private byte[] codeDelegate;
     transient ExecutorService toServerDeserializer;
 
-    public ClassLoadingRemoteCode(
+    public ClassLoadingServerCode(
             MessageHandlingServerCode<TMessage> codeDelegate) {
         this.codeDelegate = SerializationHelper.toByteArray(codeDelegate);
 
@@ -254,6 +255,7 @@ class ClassLoadingRemoteCode<TMessage> implements RequestHandlingServerCode,
         toServerDeserializer = Executors.newSingleThreadExecutor();
         try {
             classLoader = new RemoteClassLoader(this, getParentClassLoader());
+
             ((MessageHandlingServerCode<TMessage>) SerializationHelper
                     .toObject(codeDelegate, classLoader)).run(this);
             toClient.add(new ServerCodeExited(null));

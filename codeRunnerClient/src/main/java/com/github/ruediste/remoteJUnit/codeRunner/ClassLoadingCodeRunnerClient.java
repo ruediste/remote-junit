@@ -27,7 +27,32 @@ import org.slf4j.LoggerFactory;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
 
 /**
- * Client
+ * Client to run {@link MessageHandlingServerCode} with a bi-directional
+ * message-channel and remote class loading on the server.
+ * 
+ * <p>
+ * <b>Message sending </b><br>
+ * After the ServerCode is started using the {@link CodeRunnerClient}, a thread
+ * is started which takes messages from a local queue and sends them to the
+ * server code. The thread which initiated the remote code execution enters a
+ * loop requesting messages from the server and handling them, until the remote
+ * code exited.
+ * <p>
+ * <img src="doc-files/ClassLoadingRemoteCodeRunnerClient_messageing.png"/>
+ * 
+ * <p>
+ * <b> Server Code Exit </b><br>
+ * When the server code completes, a message is sent to the client which will
+ * confirm reception and return to the caller. Upon reception of the
+ * confirmation, the server code exits, too. This makes sure that all messages
+ * are exchanged between client and server before exit, since the messages are
+ * delivered in order.
+ * <p>
+ * <img src="doc-files/ClassLoadingRemoteCodeRunnerClient_exit.png"/>
+ * 
+ * <p>
+ * <b> Class Loading </b><br>
+ * TODO
  */
 public class ClassLoadingCodeRunnerClient<TMessage> {
     final static Logger log = LoggerFactory
@@ -248,7 +273,7 @@ public class ClassLoadingCodeRunnerClient<TMessage> {
     public void runCode(MessageHandlingServerCode<TMessage> code,
             BiConsumer<TMessage, Consumer<TMessage>> clientMessageHandler,
             ClassMapBuilder bootstrapClasses) {
-        ClassLoadingRemoteCode<TMessage> clCode = new ClassLoadingRemoteCode<>(
+        ClassLoadingServerCode<TMessage> clCode = new ClassLoadingServerCode<>(
                 code);
         if (parentClassLoaderSupplier != null) {
             clCode.setParentClassLoaderSupplier(parentClassLoaderSupplier);
@@ -258,9 +283,10 @@ public class ClassLoadingCodeRunnerClient<TMessage> {
             client = new CodeRunnerClient();
         }
         RequestChannel channel = client.startCode(clCode,
-                bootstrapClasses.addClass(ClassLoadingRemoteCode.class,
+                bootstrapClasses.addClass(ClassLoadingServerCode.class,
                         ClassLoadingCodeRunnerClient.class,
                         SerializationHelper.class,
+                        MessageHandlingServerCode.class,
                         ParentClassLoaderSupplier.class));
 
         MessageChannel<TMessage> msgChannel = new MessageChannel<>();
