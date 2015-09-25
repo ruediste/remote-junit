@@ -38,7 +38,7 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
  * loop requesting messages from the server and handling them, until the remote
  * code exited.
  * <p>
- * <img src="doc-files/ClassLoadingRemoteCodeRunnerClient_messageing.png"/>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_messageing.png"/>
  * 
  * <p>
  * <b> Server Code Exit </b><br>
@@ -48,11 +48,23 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
  * are exchanged between client and server before exit, since the messages are
  * delivered in order.
  * <p>
- * <img src="doc-files/ClassLoadingRemoteCodeRunnerClient_exit.png"/>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_exit.png"/>
  * 
  * <p>
  * <b> Class Loading </b><br>
- * TODO
+ * When the {@link MessageHandlingServerCode ServerCode} requires a class, the
+ * {@link ClassLoadingServerCode.RemoteClassLoader class loader} first checks if
+ * the class can be found on the server. Otherwise it requests the corresponding
+ * class from the client using a {@link RequestResourceMessage}. The class
+ * loader then enters a loop waiting for the resource to become available.
+ * <p>
+ * The client checks if the resource is part of a jar. In this case the whole
+ * jar is sent ({@link SendJarsMessage}), otherwise only the requested resource
+ * ({@link SendResourceMessage}). The message handling code on the server side
+ * adds the resource to the class loader. The class loader detects this, loads
+ * the class and returns.
+ * <p>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_classLoading.png"/>
  */
 public class ClassLoadingCodeRunnerClient<TMessage> {
     final static Logger log = LoggerFactory

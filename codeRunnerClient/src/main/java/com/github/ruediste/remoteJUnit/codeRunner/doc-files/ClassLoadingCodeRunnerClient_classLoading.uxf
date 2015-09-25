@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="13.3">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.baselet.element.old.allinone.SequenceDiagram</type>
+    <coordinates>
+      <x>40</x>
+      <y>40</y>
+      <w>460</w>
+      <h>290</h>
+    </coordinates>
+    <panel_attributes>title: Class Loading
+Client~c|ClassLoader~cl|ServerCode~sc
+cl&lt;-sc:cl,sc:request class
+cl-&gt;cl:cl,sc:available?
+c&lt;/-cl:cl,sc:request resource
+cl-&gt;cl:cl,sc:poll for resource
+c-/&gt;cl:cl,sc:send resource/jar
+cl-&gt;sc:cl,sc:return resouce
+
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>

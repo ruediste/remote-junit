@@ -17,6 +17,13 @@ import com.github.ruediste.remoteJUnit.client.internal.InternalRemoteRunner;
 import com.github.ruediste.remoteJUnit.client.internal.Utils;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
+/**
+ * Runs a jUnit test on a remote code runner server.
+ * <p>
+ * <img src="doc-files/overview.png" />
+ * 
+ * @see Remote
+ */
 public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
     private static final Logger log = LoggerFactory
