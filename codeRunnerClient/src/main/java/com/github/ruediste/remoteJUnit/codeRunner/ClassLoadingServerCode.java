@@ -249,13 +249,16 @@ class ClassLoadingServerCode<TMessage> implements RequestHandlingServerCode,
 
     Semaphore exitConfirmationReceived = new Semaphore(0);
 
+    @Override
+    public void initialize() {
+        toServerDeserializer = Executors.newSingleThreadExecutor();
+        classLoader = new RemoteClassLoader(this, getParentClassLoader());
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public void run() {
-        toServerDeserializer = Executors.newSingleThreadExecutor();
         try {
-            classLoader = new RemoteClassLoader(this, getParentClassLoader());
-
             ((MessageHandlingServerCode<TMessage>) SerializationHelper
                     .toObject(codeDelegate, classLoader)).run(this);
             toClient.add(new ServerCodeExited(null));

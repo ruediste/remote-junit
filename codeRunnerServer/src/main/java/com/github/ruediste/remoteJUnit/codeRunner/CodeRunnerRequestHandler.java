@@ -44,9 +44,9 @@ public class CodeRunnerRequestHandler {
 
     /**
      * @param executor
-     *            Used to execute the supplied {@link RequestHandlingServerCode}s. The executor
-     *            MUST return immediately, starting the supplied runnable in a
-     *            separate thread.
+     *            Used to execute the supplied {@link RequestHandlingServerCode}
+     *            s. The executor MUST return immediately, starting the supplied
+     *            runnable in a separate thread.
      */
     public CodeRunnerRequestHandler(ClassLoader parentClassLoader,
             Executor executor) {
@@ -166,55 +166,65 @@ public class CodeRunnerRequestHandler {
     RemoteCodeRunnerRequestsAndResponses.Response handleRequest(
             RemoteCodeRunnerRequestsAndResponses.Request req) {
         log.debug("Handling " + req.getClass().getSimpleName());
-        if (req instanceof RemoteCodeRunnerRequestsAndResponses.CustomRequest) {
-            CustomRequest customRequest = (CustomRequest) req;
-            RequestHandlingServerCode remoteCode = remoteCodes.get(customRequest.runId);
-            if (remoteCode != null)
-                return new RemoteCodeRunnerRequestsAndResponses.CustomResponse(
-                        remoteCode.handle(customRequest.payload));
-            else
-                return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
-                        new RuntimeException("Code already completed"));
-        } else if (req instanceof RunCodeRequest) {
-            RunCodeRequest runRequest = (RunCodeRequest) req;
-            long codeId = nextCodeId.getAndIncrement();
+        try {
+            if (req instanceof RemoteCodeRunnerRequestsAndResponses.CustomRequest) {
+                CustomRequest customRequest = (CustomRequest) req;
+                RequestHandlingServerCode remoteCode = remoteCodes
+                        .get(customRequest.runId);
+                if (remoteCode != null)
+                    return new RemoteCodeRunnerRequestsAndResponses.CustomResponse(
+                            remoteCode.handle(customRequest.payload));
+                else
+                    return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
+                            new RuntimeException("Code already completed"));
+            } else if (req instanceof RunCodeRequest) {
+                RunCodeRequest runRequest = (RunCodeRequest) req;
+                long codeId = nextCodeId.getAndIncrement();
 
-            CodeBootstrapClassLoader cl;
-            if (parentClassLoader == null)
-                cl = new CodeBootstrapClassLoader(runRequest.bootstrapClasses);
-            else
-                cl = new CodeBootstrapClassLoader(parentClassLoader,
-                        runRequest.bootstrapClasses);
+                CodeBootstrapClassLoader cl;
+                if (parentClassLoader == null)
+                    cl = new CodeBootstrapClassLoader(
+                            runRequest.bootstrapClasses);
+                else
+                    cl = new CodeBootstrapClassLoader(parentClassLoader,
+                            runRequest.bootstrapClasses);
 
-            RequestHandlingServerCode remoteCode;
-            try {
-                Class<?> cls = cl
-                        .findClass(DeserializationHelper.class.getName());
-                Constructor<?> constructor = cls.getDeclaredConstructor();
-                constructor.setAccessible(true);
-                @SuppressWarnings("unchecked")
-                Function<byte[], Object> deserializationHelper = (Function<byte[], Object>) constructor
-                        .newInstance();
-                remoteCode = (RequestHandlingServerCode) deserializationHelper
-                        .apply(((RunCodeRequest) req).code);
-            } catch (Exception e) {
-                return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
-                        e);
-            }
-            remoteCodes.put(codeId, remoteCode);
-            log.debug("invoking code");
-            executor.execute(() -> {
+                RequestHandlingServerCode remoteCode;
                 try {
-                    remoteCode.run();
-                } finally {
-                    remoteCodes.remove(codeId);
+                    Class<?> cls = cl
+                            .findClass(DeserializationHelper.class.getName());
+                    Constructor<?> constructor = cls.getDeclaredConstructor();
+                    constructor.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    Function<byte[], Object> deserializationHelper = (Function<byte[], Object>) constructor
+                            .newInstance();
+                    remoteCode = (RequestHandlingServerCode) deserializationHelper
+                            .apply(((RunCodeRequest) req).code);
+                } catch (Exception e) {
+                    throw new RuntimeException(
+                            "Error while deserializing remote code", e);
                 }
-            });
-            log.debug("sending codeStartedResponse. CodeId: " + codeId);
-            return new RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse(
-                    codeId);
-        } else
-            return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(
-                    new RuntimeException("Unknonw request " + req));
+
+                // invoke initialize
+                remoteCode.initialize();
+
+                // run code
+                remoteCodes.put(codeId, remoteCode);
+                log.debug("invoking code");
+                executor.execute(() -> {
+                    try {
+                        remoteCode.run();
+                    } finally {
+                        remoteCodes.remove(codeId);
+                    }
+                });
+                log.debug("sending codeStartedResponse. CodeId: " + codeId);
+                return new RemoteCodeRunnerRequestsAndResponses.CodeStartedResponse(
+                        codeId);
+            } else
+                throw new RuntimeException("Unknonw request " + req);
+        } catch (Exception e) {
+            return new RemoteCodeRunnerRequestsAndResponses.FailureResponse(e);
+        }
     }
 }

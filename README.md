@@ -44,7 +44,7 @@ In addition, there is the `CodeRunnerStandaloneServer`, which starts a nanohttpd
 
 To run a test remotely, simply annotate it with the `@RunWith(RemoteTestRunner.class)`. You can set the test runner to be used using the `@Remote(runnerClass=...)` and the URL to connect to (where the server is listening) using the `@Remote(endpoint=...)` annotation. 
 
-The specified endpoint can be overridden by the `junit.remote.endpoint` system property.
+The specified endpoint can be overridden by the `junit.remote.endpoint` system property. If set to `-` or if the server cannot be reached, the tests are executed locally. This makes it easy to use the unit tests from maven, since no server start/stop has to be managed.
 
 ## Architecture
 Remote JUnit uses an architecture with 3 Layers.

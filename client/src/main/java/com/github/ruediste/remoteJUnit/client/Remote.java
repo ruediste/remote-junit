@@ -31,7 +31,7 @@ public @interface Remote {
 
     /**
      * The endpoint to use for test execution. Default is
-     * 'http://localhost:4578/'
+     * 'http://localhost:4578/'.
      */
     String endpoint() default "";
 

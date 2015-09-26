@@ -15,12 +15,16 @@ import org.slf4j.LoggerFactory;
 
 import com.github.ruediste.remoteJUnit.client.internal.InternalRemoteRunner;
 import com.github.ruediste.remoteJUnit.client.internal.Utils;
+import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
 /**
  * Runs a jUnit test on a remote code runner server.
  * <p>
  * <img src="doc-files/overview.png" />
+ * <p>
+ * If the connection to the remote server is not possible, the test is run
+ * locally.
  * 
  * @see Remote
  */
@@ -66,13 +70,26 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
         {
             String endpoint = System.getProperty("junit.remote.endpoint");
-            if (endpoint != null)
+            if (endpoint != null && !endpoint.isEmpty())
                 info.endpoint = endpoint;
         }
-        log.debug("Trying remote server {} with runner {}", info.endpoint,
-                info.runnerClass.getName());
-        delegate = new InternalRemoteRunner(clazz, info.endpoint,
-                info.runnerClass, info.parentClassloaderSupplier);
+
+        delegate = null;
+
+        if (!"-".equals(info.endpoint)) {
+
+            log.debug("Trying remote server {} with runner {}", info.endpoint,
+                    info.runnerClass.getName());
+            CodeRunnerClient client = new CodeRunnerClient(info.endpoint);
+            if (client.isConnectionWorking()) {
+                delegate = new InternalRemoteRunner(clazz, client,
+                        info.runnerClass, info.parentClassloaderSupplier);
+            }
+        }
+
+        if (delegate == null) {
+            delegate = Utils.createRunner(info.runnerClass, clazz);
+        }
     }
 
     @Override

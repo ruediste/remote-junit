@@ -354,17 +354,18 @@ public class InternalRemoteRunner extends Runner
     private final Class<?> testClass;
     private Class<? extends Runner> remoteRunnerClass;
 
-    private String endpoint;
-
     private AtomicBoolean pleaseStopSent = new AtomicBoolean(false);
     private Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass;
 
-    public InternalRemoteRunner(Class<?> testClass, String endpoint,
+    private CodeRunnerClient codeRunnerClient;
+
+    public InternalRemoteRunner(Class<?> testClass,
+            CodeRunnerClient codeRunnerClient,
             Class<? extends Runner> remoteRunnerClass,
             Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass)
                     throws InitializationError {
         this.testClass = testClass;
-        this.endpoint = endpoint;
+        this.codeRunnerClient = codeRunnerClient;
         this.remoteRunnerClass = remoteRunnerClass;
         this.parentClassloaderSupplierClass = parentClassloaderSupplierClass;
         TestClass tc = new TestClass(testClass);
@@ -415,7 +416,7 @@ public class InternalRemoteRunner extends Runner
             log.debug("starting remote execution of " + testClass);
             // try {
             ClassLoadingCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingCodeRunnerClient<>();
-            client.setRunnerClient(new CodeRunnerClient(endpoint));
+            client.setRunnerClient(codeRunnerClient);
             if (parentClassloaderSupplierClass != null) {
                 ParentClassLoaderSupplier parentClassLoaderSupplier;
                 try {

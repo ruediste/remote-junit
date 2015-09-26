@@ -10,6 +10,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -174,6 +175,46 @@ public class CodeRunnerClient {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    private static class ConnectionTestServerCode
+            implements RequestHandlingServerCode {
+
+        private static final long serialVersionUID = 1L;
+        transient CountDownLatch latch;
+
+        @Override
+        public void initialize() {
+            latch = new CountDownLatch(1);
+        }
+
+        @Override
+        public void run() {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                // NOP
+            }
+        }
+
+        @Override
+        public byte[] handle(byte[] request) {
+            latch.countDown();
+            return request;
+        }
+
+    }
+
+    public boolean isConnectionWorking() {
+        try {
+            RequestChannel channel = startCode(new ConnectionTestServerCode(),
+                    new ClassMapBuilder()
+                            .addClass(ConnectionTestServerCode.class));
+            Object response = channel.sendRequest("ping");
+            return "ping".equals(response);
+        } catch (Exception e) {
+            return false;
         }
     }
 }
