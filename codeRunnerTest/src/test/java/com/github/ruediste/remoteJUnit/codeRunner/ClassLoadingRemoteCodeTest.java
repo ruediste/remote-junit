@@ -2,21 +2,18 @@ package com.github.ruediste.remoteJUnit.codeRunner;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.Serializable;
-import java.util.function.Consumer;
-
 import org.junit.Test;
 
-import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingRemoteCodeRunnerClient.RemoteCodeEnvironment;
+import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.MessageHandlingEnvironment;
 
 public class ClassLoadingRemoteCodeTest {
 
     private final static class ServerCode
-            implements Consumer<RemoteCodeEnvironment<String>>, Serializable {
+            implements MessageHandlingServerCode<String> {
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void accept(RemoteCodeEnvironment<String> env) {
+        public void run(MessageHandlingEnvironment<String> env) {
             env.sendToClient("hello");
             try {
                 assertEquals("helloFromClient",
@@ -29,7 +26,7 @@ public class ClassLoadingRemoteCodeTest {
 
     @Test
     public void test() {
-        ClassLoadingRemoteCodeRunnerClient<String> client = new ClassLoadingRemoteCodeRunnerClient<>();
+        ClassLoadingCodeRunnerClient<String> client = new ClassLoadingCodeRunnerClient<>();
         client.runCode(new ServerCode(), (msg, sender) -> {
             assertEquals("hello", msg);
             sender.accept("helloFromClient");

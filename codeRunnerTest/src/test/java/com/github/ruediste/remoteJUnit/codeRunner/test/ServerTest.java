@@ -11,13 +11,13 @@ import org.junit.Test;
 
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.RequestChannel;
-import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerCommon;
+import com.github.ruediste.remoteJUnit.codeRunner.RequestChannel;
+import com.github.ruediste.remoteJUnit.codeRunner.RequestHandlingServerCode;
 import com.github.ruediste.remoteJUnit.codeRunner.SerializationHelper;
 
 public class ServerTest {
 
-    private static class TestCode implements CodeRunnerCommon.RemoteCode {
+    private static class TestCode implements RequestHandlingServerCode {
         private static final long serialVersionUID = 1L;
 
         Semaphore blockRun = new Semaphore(0);
@@ -48,6 +48,11 @@ public class ServerTest {
             Function<TestCode, ?> req = (Function<TestCode, ?>) SerializationHelper
                     .toObject(request, getClass().getClassLoader());
             return SerializationHelper.toByteArray(req.apply(this));
+        }
+
+        @Override
+        public void initialize() {
+
         }
 
     }
