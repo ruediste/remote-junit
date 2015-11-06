@@ -42,6 +42,8 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
         Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplier = null;
 
+        boolean allowLocalExecution = true;
+
     }
 
     RemoteInfo calculateRemoteInfo(Class<?> cls) {
@@ -60,6 +62,9 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
                     .equals(remote.parentClassloaderSupplier()))
                 info.parentClassloaderSupplier = remote
                         .parentClassloaderSupplier();
+            if (remote.allowLocalExecution().length > 0) {
+                info.allowLocalExecution = remote.allowLocalExecution()[0];
+            }
         }
         return info;
 
@@ -87,7 +92,7 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
             }
         }
 
-        if (delegate == null) {
+        if (delegate == null && info.allowLocalExecution) {
             delegate = Utils.createRunner(info.runnerClass, clazz);
         }
     }

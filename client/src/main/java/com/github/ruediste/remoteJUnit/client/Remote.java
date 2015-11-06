@@ -31,7 +31,7 @@ public @interface Remote {
 
     /**
      * The endpoint to use for test execution. Default is
-     * 'http://localhost:4578/'.
+     * 'http://localhost:4578/'. If set to '-', the test is executed locally.
      */
     String endpoint() default "";
 
@@ -42,8 +42,15 @@ public @interface Remote {
     Class<? extends Runner>runnerClass() default Runner.class;
 
     /**
-     * Used on the server to obtain the parent class loader.
+     * Used on the server to obtain the parent of the class loader used to load
+     * the unit tests.
      */
     Class<? extends ParentClassLoaderSupplier>parentClassloaderSupplier() default ParentClassLoaderSupplier.class;
 
+    /**
+     * If set to false, tests are NOT executed locally if the connection to the
+     * remote server cannot be established. Default is true. The array is
+     * intended to be empty contain or a single boolean.
+     */
+    boolean[]allowLocalExecution() default {};
 }

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
@@ -70,11 +71,15 @@ public class Utils {
                 return runnerClass.newInstance();
             } catch (Exception e1) {
                 throw new RuntimeException(
-                        "Unable to create instanceof " + runnerClass, e);
+                        "Unable to create instance of " + runnerClass, e);
             }
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(
+                    "Unable to create instance of " + runnerClass,
+                    e.getCause());
         } catch (Exception e) {
             throw new RuntimeException(
-                    "Unable to create instanceof " + runnerClass, e);
+                    "Unable to create instance of " + runnerClass, e);
         }
     }
 

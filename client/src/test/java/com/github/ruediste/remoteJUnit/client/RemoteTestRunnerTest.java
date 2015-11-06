@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.runners.JUnit4;
 import org.junit.runners.ParentRunner;
 
 import com.github.ruediste.remoteJUnit.client.RemoteTestRunner.RemoteInfo;
@@ -19,7 +19,10 @@ public class RemoteTestRunnerTest {
         runner = new RemoteTestRunner(A.class);
     }
 
-    private class A {
+    public static class A {
+        @Test
+        public void test() {
+        }
     }
 
     @Test
@@ -28,7 +31,8 @@ public class RemoteTestRunnerTest {
         RemoteInfo info = runner.calculateRemoteInfo(A.class);
         assertEquals("http://localhost:4578/", info.endpoint);
         assertEquals(null, info.parentClassloaderSupplier);
-        assertEquals(BlockJUnit4ClassRunner.class, info.runnerClass);
+        assertEquals(JUnit4.class, info.runnerClass);
+        assertEquals(true, info.allowLocalExecution);
     }
 
     private abstract static class TestParentClassLoaderSupplier
@@ -59,5 +63,6 @@ public class RemoteTestRunnerTest {
         assertEquals(TestParentClassLoaderSupplier.class,
                 info.parentClassloaderSupplier);
         assertEquals(ParentRunner.class, info.runnerClass);
+        assertEquals(true, info.allowLocalExecution);
     }
 }
