@@ -7,6 +7,7 @@ Run jUnit tests on a remote machine / JVM.
 * embeddable and integratable server, no separate port needed
 * minimal footprint server (3 public classes), no dependencies except nanohttpd which consists of a single class
 
+[![Build Status](https://travis-ci.org/ruediste/remote-junit.svg)](https://travis-ci.org/ruediste/remote-junit)
 
 ## Getting started
 
