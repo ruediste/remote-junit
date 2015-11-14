@@ -24,7 +24,9 @@ import com.github.ruediste.remoteJUnit.codeRunner.RemoteCodeRunnerRequestsAndRes
  * Client to run {@link RequestHandlingServerCode} on a code runner server.
  * 
  * <p>
- * <img src="doc-files/CodeRunnerClient_sequence.png"/>
+ * <img src="doc-files/CodeRunnerClient_sequence.png" alt=
+ * "sequence diagram showning an overview of the communication between server and client"
+ * >
  * <p>
  * Using {@link #startCode(RequestHandlingServerCode, ClassMapBuilder)}, a piece
  * of code can be sent to the server where it is started. A session id is

@@ -37,7 +37,7 @@ class ClassLoadingServerCode<TMessage> implements RequestHandlingServerCode,
 
     private static final long serialVersionUID = 1L;
 
-    private static class RemoteClassLoader extends ClassLoader {
+    static class RemoteClassLoader extends ClassLoader {
         private final class RemoteURLStreamHandler extends URLStreamHandler {
             private byte[] bb;
 

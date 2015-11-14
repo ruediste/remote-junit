@@ -38,7 +38,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
  * loop requesting messages from the server and handling them, until the remote
  * code exited.
  * <p>
- * <img src="doc-files/ClassLoadingCodeRunnerClient_messageing.png"/>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_messageing.png" alt=
+ * "message flow">
  * 
  * <p>
  * <b> Server Code Exit </b><br>
@@ -48,7 +49,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
  * are exchanged between client and server before exit, since the messages are
  * delivered in order.
  * <p>
- * <img src="doc-files/ClassLoadingCodeRunnerClient_exit.png"/>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_exit.png" alt=
+ * "exit sequence">
  * 
  * <p>
  * <b> Class Loading </b><br>
@@ -64,7 +66,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
  * adds the resource to the class loader. The class loader detects this, loads
  * the class and returns.
  * <p>
- * <img src="doc-files/ClassLoadingCodeRunnerClient_classLoading.png"/>
+ * <img src="doc-files/ClassLoadingCodeRunnerClient_classLoading.png" alt=
+ * "class loading sequence">
  */
 public class ClassLoadingCodeRunnerClient<TMessage> {
     final static Logger log = LoggerFactory
@@ -278,8 +281,13 @@ public class ClassLoadingCodeRunnerClient<TMessage> {
     }
 
     /**
+     * @param code
+     *            code to be executed
      * @param clientMessageHandler
      *            handler for messages sent from the server back to the client
+     * @param bootstrapClasses
+     *            classes to be sent along with the code, used to deserialize
+     *            the code
      */
     @SuppressWarnings("unchecked")
     public void runCode(MessageHandlingServerCode<TMessage> code,

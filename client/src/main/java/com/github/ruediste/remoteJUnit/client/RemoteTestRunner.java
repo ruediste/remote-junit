@@ -21,7 +21,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 /**
  * Runs a jUnit test on a remote code runner server.
  * <p>
- * <img src="doc-files/overview.png" />
+ * <img src="doc-files/overview.png" alt="class diagram showing an overview over
+ * the classes involved in the remote junit client">
  * <p>
  * If the connection to the remote server is not possible, the test is run
  * locally.
