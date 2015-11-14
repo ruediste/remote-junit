@@ -21,7 +21,8 @@ public class RequestChannel {
     }
 
     public Object sendRequest(Object request) {
-        log.debug("sending custom request " + request.getClass().getName());
+        log.debug("sending custom request {}",
+                request == null ? null : request.getClass().getName());
         RemoteCodeRunnerRequestsAndResponses.CustomResponse resp = (CustomResponse) CodeRunnerClient
                 .toResponse(requestSender.apply(SerializationHelper.toByteArray(
                         new RemoteCodeRunnerRequestsAndResponses.CustomRequest(

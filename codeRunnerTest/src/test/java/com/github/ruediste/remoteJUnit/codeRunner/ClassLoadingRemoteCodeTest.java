@@ -3,9 +3,12 @@ package com.github.ruediste.remoteJUnit.codeRunner;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import com.github.ruediste.remoteJUnit.codeRunner.ClassLoadingCodeRunnerClient.MessageHandlingEnvironment;
+import com.github.ruediste.remoteJUnit.codeRunner.test.IntegrationTest;
 
+@Category(IntegrationTest.class)
 public class ClassLoadingRemoteCodeTest {
 
     private final static class ServerCode

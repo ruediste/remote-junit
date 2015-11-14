@@ -8,6 +8,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient;
 import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuilder;
@@ -15,6 +16,7 @@ import com.github.ruediste.remoteJUnit.codeRunner.RequestChannel;
 import com.github.ruediste.remoteJUnit.codeRunner.RequestHandlingServerCode;
 import com.github.ruediste.remoteJUnit.codeRunner.SerializationHelper;
 
+@Category(IntegrationTest.class)
 public class ServerTest {
 
     private static class TestCode implements RequestHandlingServerCode {
