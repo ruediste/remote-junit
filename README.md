@@ -11,7 +11,11 @@ Run jUnit tests on a remote machine / JVM.
 
 ## Getting started
 
-Create a server class
+First, add a maven dependency to the server [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.ruediste.remoteJUnit/remoteJUnit-codeRunnerServer/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.ruediste.remoteJUnit/remoteJUnit-codeRunnerServer) 
+respectively the client [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.ruediste.remoteJUnit/remoteJUnit-client/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.ruediste.remoteJUnit/remoteJUnit-client).
+
+   
+Then create a server class
 
     public class Server {
     
