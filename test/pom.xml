@@ -6,6 +6,7 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<maven.deploy.skip>true</maven.deploy.skip>
 	</properties>
 	<build>
 		<plugins>
@@ -39,4 +40,5 @@
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
+	<description>integration tests for the remote JUnit runner</description>
 </project>

@@ -7,6 +7,9 @@
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
 	<artifactId>remoteJUnit-codeRunnerTest</artifactId>
+	<properties>
+		<maven.deploy.skip>true</maven.deploy.skip>
+	</properties>
 
 	<dependencies>
 		<dependency>
@@ -100,4 +103,5 @@
 			</plugin>
 		</plugins>
 	</build>
+	<description>integration tests for the code runner server and -client.</description>
 </project>

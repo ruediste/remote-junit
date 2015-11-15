@@ -12,10 +12,10 @@
 	<packaging>pom</packaging>
 	<modules>
 		<module>client</module>
-		<module>test</module>
 		<module>codeRunnerClient</module>
 		<module>codeRunnerCommon</module>
 		<module>codeRunnerServer</module>
+		<module>test</module>
 		<module>codeRunnerTest</module>
 	</modules>
 	<properties>
