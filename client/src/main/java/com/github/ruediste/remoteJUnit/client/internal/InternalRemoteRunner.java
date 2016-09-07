@@ -39,10 +39,8 @@ import com.github.ruediste.remoteJUnit.codeRunner.CodeRunnerClient.ClassMapBuild
 import com.github.ruediste.remoteJUnit.codeRunner.MessageHandlingServerCode;
 import com.github.ruediste.remoteJUnit.codeRunner.ParentClassLoaderSupplier;
 
-public class InternalRemoteRunner extends Runner
-        implements Filterable, Sortable {
-    private static final Logger log = LoggerFactory
-            .getLogger(InternalRemoteRunner.class);
+public class InternalRemoteRunner extends Runner implements Filterable, Sortable {
+    private static final Logger log = LoggerFactory.getLogger(InternalRemoteRunner.class);
 
     public interface RemoteJUnitMessage extends Serializable {
 
@@ -56,8 +54,7 @@ public class InternalRemoteRunner extends Runner
         public String argTypeClass;
         public Object arg;
 
-        public NotifierInvokedMessage(String methodName, String argTypeClass,
-                Object arg) {
+        public NotifierInvokedMessage(String methodName, String argTypeClass, Object arg) {
             this.methodName = methodName;
             this.argTypeClass = argTypeClass;
             this.arg = arg;
@@ -124,8 +121,7 @@ public class InternalRemoteRunner extends Runner
 
     }
 
-    private static class ServerCode
-            implements MessageHandlingServerCode<RemoteJUnitMessage> {
+    private static class ServerCode implements MessageHandlingServerCode<RemoteJUnitMessage> {
         private static final long serialVersionUID = 1L;
 
         private static class SessionRunNotifier extends RunNotifier {
@@ -135,17 +131,14 @@ public class InternalRemoteRunner extends Runner
                 this.toClientSender = toClientSender;
             }
 
-            private <T> void sendMessage(String methodName, Class<T> argType,
-                    T arg) {
+            private <T> void sendMessage(String methodName, Class<T> argType, T arg) {
                 log.debug("send notifier invocation: {}({})", methodName, arg);
-                toClientSender.accept(new NotifierInvokedMessage(methodName,
-                        argType.getName(), arg));
+                toClientSender.accept(new NotifierInvokedMessage(methodName, argType.getName(), arg));
             }
 
             @Override
             public void fireTestRunStarted(Description description) {
-                sendMessage("fireTestRunStarted", Description.class,
-                        description);
+                sendMessage("fireTestRunStarted", Description.class, description);
                 super.fireTestRunStarted(description);
             }
 
@@ -156,8 +149,7 @@ public class InternalRemoteRunner extends Runner
             }
 
             @Override
-            public void fireTestStarted(Description description)
-                    throws StoppedByUserException {
+            public void fireTestStarted(Description description) throws StoppedByUserException {
                 sendMessage("fireTestStarted", Description.class, description);
                 super.fireTestStarted(description);
             }
@@ -193,8 +185,7 @@ public class InternalRemoteRunner extends Runner
         Description description;
         private volatile boolean completed;
 
-        public ServerCode(Class<?> testClass,
-                Class<? extends Runner> runnerClass, Description description) {
+        public ServerCode(Class<?> testClass, Class<? extends Runner> runnerClass, Description description) {
             super();
             this.testClass = testClass;
             this.runnerClass = runnerClass;
@@ -207,16 +198,14 @@ public class InternalRemoteRunner extends Runner
 
             try {
 
-                RunNotifier notifier = new SessionRunNotifier(
-                        env::sendToClient);
+                RunNotifier notifier = new SessionRunNotifier(env::sendToClient);
                 // start toServer message handler
                 {
                     Thread t = new Thread(() -> {
                         while (!completed) {
                             RemoteJUnitMessage msg;
                             try {
-                                msg = env.getToServerMessages().poll(1,
-                                        TimeUnit.SECONDS);
+                                msg = env.getToServerMessages().poll(1, TimeUnit.SECONDS);
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }
@@ -226,9 +215,9 @@ public class InternalRemoteRunner extends Runner
                                 if (msg instanceof StoppedByUserMessage) {
                                     log.debug("invoking notifier.pleaseStop()");
                                     notifier.pleaseStop();
-                                } else
-                                    throw new RuntimeException(
-                                            "Unknown message " + msg);
+                                } else {
+                                    throw new RuntimeException("Unknown message " + msg);
+                                }
                             }
                         }
                     });
@@ -236,8 +225,7 @@ public class InternalRemoteRunner extends Runner
                     t.setDaemon(true);
                     t.start();
                 }
-                final Runner runner = Utils.createRunner(runnerClass,
-                        testClass);
+                final Runner runner = Utils.createRunner(runnerClass, testClass);
 
                 HashSet<Description> allDescriptions = new HashSet<>();
                 fillDescriptions(description, allDescriptions);
@@ -251,8 +239,7 @@ public class InternalRemoteRunner extends Runner
 
                     @Override
                     public String describe() {
-                        return "Filter letting pass "
-                                + description.getChildren();
+                        return "Filter letting pass " + description.getChildren();
                     }
                 });
 
@@ -262,14 +249,16 @@ public class InternalRemoteRunner extends Runner
                     public int compare(Description o1, Description o2) {
                         int idx1 = 0;
                         for (Description child : description.getChildren()) {
-                            if (o1.equals(child))
+                            if (o1.equals(child)) {
                                 break;
+                            }
                             idx1++;
                         }
                         int idx2 = 0;
                         for (Description child : description.getChildren()) {
-                            if (o2.equals(child))
+                            if (o2.equals(child)) {
                                 break;
+                            }
                             idx2++;
                         }
                         return Integer.compare(idx1, idx2);
@@ -286,23 +275,18 @@ public class InternalRemoteRunner extends Runner
             }
         }
 
-        private void fillDescriptions(Description description,
-                HashSet<Description> allDescriptions) {
+        private void fillDescriptions(Description description, HashSet<Description> allDescriptions) {
             if (allDescriptions.add(description)) {
-                description.getChildren()
-                        .forEach(d -> fillDescriptions(d, allDescriptions));
+                description.getChildren().forEach(d -> fillDescriptions(d, allDescriptions));
             }
         }
     }
 
-    private final class ToClientMessageHandler
-            extends RemoteJUnitMessageVisitor<Boolean> {
+    private final class ToClientMessageHandler extends RemoteJUnitMessageVisitor<Boolean> {
         private RunNotifier notifier;
         private Consumer<RemoteJUnitMessage> toServerSender;
 
-        public ToClientMessageHandler(
-                Consumer<RemoteJUnitMessage> toServerSender,
-                RunNotifier notifier) {
+        public ToClientMessageHandler(Consumer<RemoteJUnitMessage> toServerSender, RunNotifier notifier) {
             this.toServerSender = toServerSender;
             this.notifier = notifier;
         }
@@ -311,12 +295,13 @@ public class InternalRemoteRunner extends Runner
         public Boolean handle(RunCompletedMessage runCompletedMessage) {
             Throwable failure = runCompletedMessage.failure;
             if (failure != null) {
-                if (failure instanceof RuntimeException)
+                if (failure instanceof RuntimeException) {
                     throw (RuntimeException) failure;
-                if (failure instanceof Error)
+                }
+                if (failure instanceof Error) {
                     throw (Error) failure;
-                throw new RuntimeException("Error in remote unit test",
-                        failure);
+                }
+                throw new RuntimeException("Error in remote unit test", failure);
             }
             return true;
         }
@@ -324,14 +309,11 @@ public class InternalRemoteRunner extends Runner
         @Override
         public Boolean handle(NotifierInvokedMessage msg) {
             Object arg = msg.arg;
-            log.debug("invoking method " + msg.methodName
-                    + "() on notifier with argument " + arg);
+            log.debug("invoking method " + msg.methodName + "() on notifier with argument " + arg);
             Class<?> argType;
             try {
-                argType = RunNotifier.class.getClassLoader()
-                        .loadClass(msg.argTypeClass);
-                Method method = RunNotifier.class.getMethod(msg.methodName,
-                        argType);
+                argType = RunNotifier.class.getClassLoader().loadClass(msg.argTypeClass);
+                Method method = RunNotifier.class.getMethod(msg.methodName, argType);
                 method.invoke(notifier, arg);
             } catch (InvocationTargetException e) {
                 if (e.getCause() instanceof StoppedByUserException) {
@@ -339,8 +321,9 @@ public class InternalRemoteRunner extends Runner
                         log.debug("sending StoppedByUserMessage");
                         toServerSender.accept(new StoppedByUserMessage());
                     }
-                } else
+                } else {
                     throw new RuntimeException(e.getCause());
+                }
             } catch (Exception e) {
                 log.warn("Error while invoking RunNotifier method", e);
             }
@@ -350,7 +333,7 @@ public class InternalRemoteRunner extends Runner
 
     private Description description;
 
-    private Map<Description, String> methodNames = new HashMap<Description, String>();
+    private Map<Description, String> methodNames = new HashMap<>();
     private final Class<?> testClass;
     private Class<? extends Runner> remoteRunnerClass;
 
@@ -359,11 +342,9 @@ public class InternalRemoteRunner extends Runner
 
     private CodeRunnerClient codeRunnerClient;
 
-    public InternalRemoteRunner(Class<?> testClass,
-            CodeRunnerClient codeRunnerClient,
+    public InternalRemoteRunner(Class<?> testClass, CodeRunnerClient codeRunnerClient,
             Class<? extends Runner> remoteRunnerClass,
-            Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass)
-                    throws InitializationError {
+            Class<? extends ParentClassLoaderSupplier> parentClassloaderSupplierClass) throws InitializationError {
         this.testClass = testClass;
         this.codeRunnerClient = codeRunnerClient;
         this.remoteRunnerClass = remoteRunnerClass;
@@ -374,8 +355,7 @@ public class InternalRemoteRunner extends Runner
 
         for (FrameworkMethod method : tc.getAnnotatedMethods(Test.class)) {
             String methodName = method.getName();
-            Description child = Description.createTestDescription(testClass,
-                    methodName, method.getAnnotations());
+            Description child = Description.createTestDescription(testClass, methodName, method.getAnnotations());
 
             methodNames.put(child, methodName);
             description.addChild(child);
@@ -420,22 +400,16 @@ public class InternalRemoteRunner extends Runner
             if (parentClassloaderSupplierClass != null) {
                 ParentClassLoaderSupplier parentClassLoaderSupplier;
                 try {
-                    parentClassLoaderSupplier = parentClassloaderSupplierClass
-                            .newInstance();
+                    parentClassLoaderSupplier = parentClassloaderSupplierClass.newInstance();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
                 client.setParentClassLoaderSupplier(parentClassLoaderSupplier);
             }
-            client.runCode(
-                    new ServerCode(testClass, remoteRunnerClass, description),
-                    (msg, sender) -> {
-                        log.debug("handling toClient message " + msg);
-                        msg.accept(
-                                new ToClientMessageHandler(sender, notifier));
-                    } ,
-                    new ClassMapBuilder().addClass(InternalRemoteRunner.class,
-                            RunCompletedMessage.class));
+            client.runCode(new ServerCode(testClass, remoteRunnerClass, description), (msg, sender) -> {
+                log.debug("handling toClient message " + msg);
+                msg.accept(new ToClientMessageHandler(sender, notifier));
+            }, new ClassMapBuilder().addClass(InternalRemoteRunner.class, RunCompletedMessage.class));
         } catch (Exception e) {
             notifier.fireTestFailure(new Failure(description, e));
         }
