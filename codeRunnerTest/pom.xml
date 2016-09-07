@@ -3,7 +3,7 @@
 	<parent>
 		<groupId>com.github.ruediste.remoteJUnit</groupId>
 		<artifactId>remoteJUnit-parent</artifactId>
-		<version>1.1-SNAPSHOT</version>
+		<version>1.1</version>
 	</parent>
 	<artifactId>remoteJUnit-codeRunnerTest</artifactId>
 	<properties>
@@ -14,12 +14,12 @@
 		<dependency>
 			<groupId>com.github.ruediste.remoteJUnit</groupId>
 			<artifactId>remoteJUnit-codeRunnerServer</artifactId>
-			<version>1.1-SNAPSHOT</version>
+			<version>1.1</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.ruediste.remoteJUnit</groupId>
 			<artifactId>remoteJUnit-codeRunnerClient</artifactId>
-			<version>1.1-SNAPSHOT</version>
+			<version>1.1</version>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
