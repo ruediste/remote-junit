@@ -96,6 +96,9 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
         if (delegate == null && info.allowLocalExecution) {
             delegate = Utils.createRunner(info.runnerClass, clazz);
         }
+        if (delegate == null && !info.allowLocalExecution) {
+            throw new RuntimeException("Remote server did not respond and local execution is not allowed");
+        }
     }
 
     @Override
