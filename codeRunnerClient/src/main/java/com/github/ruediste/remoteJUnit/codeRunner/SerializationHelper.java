@@ -18,11 +18,12 @@ public class SerializationHelper {
     static class DeserializationHelper implements Function<byte[], Object> {
 
         @Override
-        public Object apply(byte[] t) {
-            try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(t))) {
+        public Object apply(byte[] bb) {
+            try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bb))) {
                 return ois.readObject();
-            } catch (IOException | ClassNotFoundException e) {
-                throw new RuntimeException(e);
+            } catch (Throwable t) {
+                throw new RuntimeException(
+                    "Error during deserialization, class loader was " + getClass().getClassLoader(), t);
             }
         }
     }
@@ -49,6 +50,10 @@ public class SerializationHelper {
             }
         }
 
+        @Override
+        public String toString() {
+            return "HelperClassLoader(" + getParent() + ")";
+        }
     }
 
     public static Object toObject(byte[] bytes, ClassLoader cl) {

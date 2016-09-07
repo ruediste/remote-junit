@@ -205,6 +205,11 @@ class ClassLoadingServerCode<TMessage>
                 resources.notifyAll();
             }
         }
+
+        @Override
+        public String toString() {
+            return "RemoteClassLoader(" + getParent() + ")";
+        }
     }
 
     private ClassLoadingServerCode.RemoteClassLoader classLoader;

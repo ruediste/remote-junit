@@ -130,7 +130,12 @@ public class CodeRunnerRequestHandler {
                     return super.findClass(name);
                 }
             }
-        };
+        }
+
+        @Override
+        public String toString() {
+            return "CodeBootstrapClassLoader(" + getParent() + ")";
+        }
     }
 
     /**
@@ -147,13 +152,15 @@ public class CodeRunnerRequestHandler {
             try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(t))) {
                 return ois.readObject();
             } catch (IOException | ClassNotFoundException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException(
+                    "Error during deserialization, class loader was " + getClass().getClassLoader(), e);
             }
         }
     }
 
     RemoteCodeRunnerRequestsAndResponses.Response handleRequest(RemoteCodeRunnerRequestsAndResponses.Request req) {
         log.debug("Handling " + req.getClass().getSimpleName());
+        Thread.currentThread().setContextClassLoader(parentClassLoader);
         try {
             if (req instanceof RemoteCodeRunnerRequestsAndResponses.CustomRequest) {
                 CustomRequest customRequest = (CustomRequest) req;

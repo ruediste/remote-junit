@@ -394,7 +394,6 @@ public class InternalRemoteRunner extends Runner implements Filterable, Sortable
     public void run(RunNotifier notifier) {
         try {
             log.debug("starting remote execution of " + testClass);
-            // try {
             ClassLoadingCodeRunnerClient<RemoteJUnitMessage> client = new ClassLoadingCodeRunnerClient<>();
             client.setRunnerClient(codeRunnerClient);
             if (parentClassloaderSupplierClass != null) {
