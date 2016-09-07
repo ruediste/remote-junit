@@ -37,7 +37,11 @@ public class CodeRunnerRequestHandler {
     private ClassLoader parentClassLoader;
 
     public CodeRunnerRequestHandler() {
-        this(CodeRunnerRequestHandler.class.getClassLoader(), Executors.newCachedThreadPool()::execute);
+        this(CodeRunnerRequestHandler.class.getClassLoader());
+    }
+
+    public CodeRunnerRequestHandler(ClassLoader parentClassLoader) {
+        this(parentClassLoader, Executors.newCachedThreadPool()::execute);
     }
 
     /**
@@ -84,10 +88,6 @@ public class CodeRunnerRequestHandler {
         }
 
         private Map<String, byte[]> classData;
-
-        private CodeBootstrapClassLoader(Map<String, byte[]> classData) {
-            this.classData = classData;
-        }
 
         private CodeBootstrapClassLoader(ClassLoader parent, Map<String, byte[]> classData) {
             super(parent);
@@ -169,13 +169,8 @@ public class CodeRunnerRequestHandler {
                 RunCodeRequest runRequest = (RunCodeRequest) req;
                 long codeId = nextCodeId.getAndIncrement();
 
-                CodeBootstrapClassLoader cl;
-                if (parentClassLoader == null) {
-                    cl = new CodeBootstrapClassLoader(runRequest.bootstrapClasses);
-                } else {
-                    cl = new CodeBootstrapClassLoader(parentClassLoader, runRequest.bootstrapClasses);
-                }
-
+                CodeBootstrapClassLoader cl = new CodeBootstrapClassLoader(parentClassLoader,
+                    runRequest.bootstrapClasses);
                 RequestHandlingServerCode remoteCode;
                 try {
                     Class<?> cls = cl.findClass(DeserializationHelper.class.getName());
@@ -196,6 +191,7 @@ public class CodeRunnerRequestHandler {
                 remoteCodes.put(codeId, remoteCode);
                 log.debug("invoking code");
                 executor.execute(() -> {
+                    Thread.currentThread().setContextClassLoader(parentClassLoader);
                     try {
                         remoteCode.run();
                     } finally {
